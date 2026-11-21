@@ -81,7 +81,7 @@ async def retrieve_historical_context(state: WorkflowState, db: AsyncSession) ->
         .where(ProjectMember.project_id == pid)
     )
     team = [
-        f"{r.user_name} ({r.ProjectMember.project_role})"
+        f"{r.user_name} ({r.ProjectMember.role})"
         for r in result.all()
     ]
     project_requirements = (
