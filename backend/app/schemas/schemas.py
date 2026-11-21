@@ -5,13 +5,13 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from typing import Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 # ── Shared ────────────────────────────────────────────────────────────────────
 
 class EvidenceItem(BaseModel):
-    meeting_id: str
+    meeting_id: str = ""
     meeting_title: str = ""
     speaker: str
     timestamp_ref: str | None = None
@@ -44,10 +44,6 @@ class UserResponse(BaseModel):
 class CreateProjectRequest(BaseModel):
     name: str
     description: str = ""
-    manager_id: str
-    start_date: date
-    deadline: date
-    objectives: str = ""
     technology_stack: list[str] = []
     requirements: str = ""
 
@@ -55,9 +51,9 @@ class CreateProjectRequest(BaseModel):
 class UpdateProjectRequest(BaseModel):
     name: str | None = None
     description: str | None = None
-    deadline: date | None = None
     status: str | None = None
-    objectives: str | None = None
+    health: str | None = None
+    completion_percentage: int | None = None
     technology_stack: list[str] | None = None
     requirements: str | None = None
 
@@ -65,16 +61,12 @@ class UpdateProjectRequest(BaseModel):
 class ProjectResponse(BaseModel):
     id: str
     name: str
-    description: str | None
-    manager_id: str | None
-    start_date: date | None
-    deadline: date | None
+    description: str | None = None
     status: str
     health: str
-    completion_percentage: float
-    objectives: str | None
-    technology_stack: list[str] | None
-    requirements: str | None
+    completion_percentage: int
+    technology_stack: list[str] = []
+    requirements: str | None = None
     member_count: int = 0
     created_at: datetime
     updated_at: datetime
@@ -86,20 +78,19 @@ class ProjectResponse(BaseModel):
 
 class CreateMemberRequest(BaseModel):
     user_id: str | None = None
-    name: str                           # used to create/lookup user
-    email: str
-    project_role: str = "developer"
-    responsibilities: str = ""
+    name: str
+    email: str = ""
+    role: str = "member"
 
 
 class MemberResponse(BaseModel):
     id: str
     project_id: str
-    user_id: str
+    user_id: str | None = None
     name: str = ""
-    email: str = ""
-    project_role: str
-    responsibilities: str | None
+    email: str | None = None
+    role: str = "member"
+    avatar_url: str | None = None
     joined_at: datetime
 
     model_config = {"from_attributes": True}
@@ -110,9 +101,9 @@ class MemberResponse(BaseModel):
 class CreateMeetingRequest(BaseModel):
     title: str
     meeting_type: str = "general"
-    meeting_date: datetime
+    meeting_date: datetime | None = None
     participants: list[str] = []
-    transcript: str
+    transcript: str = ""
 
 
 class MeetingResponse(BaseModel):
@@ -120,10 +111,10 @@ class MeetingResponse(BaseModel):
     project_id: str
     title: str
     meeting_type: str
-    meeting_date: datetime | None
-    processing_status: str
-    summary: str | None
-    participants: list[str] | None
+    meeting_date: datetime | None = None
+    status: str
+    summary: str | None = None
+    participants: list[str] = []
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -134,12 +125,12 @@ class MeetingResponse(BaseModel):
 class DecisionResponse(BaseModel):
     id: str
     project_id: str
-    meeting_id: str | None
+    meeting_id: str | None = None
     title: str
-    description: str | None
+    description: str | None = None
     category: str
     status: str
-    evidence: list[EvidenceItem] | None = []
+    evidence: list[EvidenceItem] = []
     confidence: float
     created_at: datetime
     updated_at: datetime
@@ -154,17 +145,16 @@ class ConflictResponse(BaseModel):
     project_id: str
     category: str
     title: str
-    previous_state: dict[str, Any] | None
-    new_state: dict[str, Any] | None
-    evidence: list[EvidenceItem] | None = []
+    previous_state: dict[str, Any] | None = None
+    new_state: dict[str, Any] | None = None
+    evidence: list[dict[str, Any]] = []
     severity: str
     confidence: float
-    recommendation: ConflictRecommendation | None
-    ai_explanation: str | None
-    impact_analysis: dict[str, Any] | None
+    recommendation: ConflictRecommendation | None = None
+    ai_explanation: str | None = None
     status: str
+    resolved_at: datetime | None = None
     created_at: datetime
-    resolved_at: datetime | None
 
     model_config = {"from_attributes": True}
 
@@ -179,15 +169,18 @@ class ResolveConflictRequest(BaseModel):
 class CreateTaskRequest(BaseModel):
     title: str
     description: str = ""
-    assigned_to: str | None = None
+    assigned_to_name: str | None = None
+    assigned_to_id: str | None = None
     priority: str = "medium"
     due_date: date | None = None
+    meeting_id: str | None = None
 
 
 class UpdateTaskRequest(BaseModel):
     title: str | None = None
     description: str | None = None
-    assigned_to: str | None = None
+    assigned_to_name: str | None = None
+    assigned_to_id: str | None = None
     priority: str | None = None
     status: str | None = None
     due_date: date | None = None
@@ -196,14 +189,15 @@ class UpdateTaskRequest(BaseModel):
 class TaskResponse(BaseModel):
     id: str
     project_id: str
+    meeting_id: str | None = None
     title: str
-    description: str | None
-    assigned_to: str | None
-    assigned_name: str | None = None
+    description: str | None = None
+    assigned_to_name: str | None = None
+    assigned_to_id: str | None = None
     priority: str
     status: str
-    due_date: date | None
-    source_meeting_id: str | None
+    due_date: date | None = None
+    completed_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -214,18 +208,20 @@ class TaskResponse(BaseModel):
 
 class AttentionItem(BaseModel):
     type: str
-    title: str
     severity: str
+    title: str
     project_id: str
-    resource_id: str
-    created_at: datetime
+    project_name: str = ""
+    entity_id: str = ""
 
 
 class ActivityItem(BaseModel):
     id: str
-    event_type: str
-    description: str | None
-    project_name: str = ""
+    project_id: str = ""
+    actor_name: str | None = None
+    action: str
+    summary: str | None = None
+    entity_type: str | None = None
     created_at: datetime
 
 
@@ -234,10 +230,9 @@ class DashboardStats(BaseModel):
     meetings_analyzed: int
     pending_tasks: int
     open_conflicts: int
-    overdue_tasks: int
-    completed_tasks: int
-    recent_activity: list[ActivityItem] = []
+    projects: list[Any] = []
     attention_items: list[AttentionItem] = []
+    recent_activity: list[ActivityItem] = []
 
 
 # ── Risks ─────────────────────────────────────────────────────────────────────
@@ -245,12 +240,13 @@ class DashboardStats(BaseModel):
 class RiskResponse(BaseModel):
     id: str
     project_id: str
+    category: str
     title: str
-    description: str | None
+    description: str | None = None
     severity: str
-    source_type: str | None
-    status: str
-    created_at: datetime
+    entity_type: str | None = None
+    is_active: bool = True
+    detected_at: datetime
 
     model_config = {"from_attributes": True}
 
@@ -265,8 +261,8 @@ class CopilotChatRequest(BaseModel):
 
 class ConversationResponse(BaseModel):
     id: str
-    project_id: str | None
-    title: str | None
+    project_id: str | None = None
+    title: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -278,7 +274,8 @@ class ProjectStateResponse(BaseModel):
     id: str
     project_id: str
     state_key: str
-    state_value: Any
+    state_value: str
+    state_category: str = "general"
     updated_at: datetime
 
     model_config = {"from_attributes": True}

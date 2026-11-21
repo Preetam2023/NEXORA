@@ -8,11 +8,22 @@ import { getDashboard } from '@/api/client'
 import { cn, formatRelative, statusColor } from '@/lib/utils'
 
 export default function Dashboard() {
-  const { data, isLoading } = useQuery({ queryKey: ['dashboard'], queryFn: getDashboard })
+  const { data, isLoading, isError } = useQuery({ queryKey: ['dashboard'], queryFn: getDashboard })
 
   if (isLoading) return <DashboardSkeleton />
+  if (isError || !data) return (
+    <div className="p-6 max-w-7xl mx-auto">
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold text-slate-900">Organization Dashboard</h1>
+        <p className="text-slate-500 text-sm mt-1">Project intelligence across all active work</p>
+      </div>
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
+        Backend not connected — start the FastAPI server at <code className="font-mono">localhost:8000</code> to load live data.
+      </div>
+    </div>
+  )
 
-  const stats = data!
+  const stats = data
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
