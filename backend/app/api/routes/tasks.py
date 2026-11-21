@@ -6,7 +6,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.models.models import Task, ProjectMember, Project
+from app.models.models import Task, ProjectMember, Project, User
 from app.schemas.schemas import (
     CreateTaskRequest, UpdateTaskRequest, TaskResponse, ListResponse,
 )
@@ -22,7 +22,7 @@ def _task_to_response(task: Task) -> dict:
         "title": task.title,
         "description": task.description,
         "assigned_to_name": task.assigned_to_name,
-        "assigned_to_id": task.assigned_to_id,
+        "assigned_to": str(task.assigned_to) if task.assigned_to else None,
         "priority": task.priority,
         "status": task.status,
         "due_date": task.due_date.isoformat() if task.due_date else None,
@@ -66,9 +66,9 @@ async def list_tasks(project_id: str, db: AsyncSession = Depends(get_db)):
 @router.post("/projects/{project_id}/tasks", response_model=TaskResponse, status_code=201)
 async def create_task(project_id: str, body: CreateTaskRequest, db: AsyncSession = Depends(get_db)):
     # Resolve project_member id if only name provided
-    assigned_to_id = body.assigned_to_id
+    assigned_to = body.assigned_to_id
     assigned_to_name = body.assigned_to_name
-    if not assigned_to_id and assigned_to_name:
+    if not assigned_to and assigned_to_name:
         result = await db.execute(
             select(ProjectMember).where(
                 ProjectMember.project_id == project_id,
@@ -77,14 +77,14 @@ async def create_task(project_id: str, body: CreateTaskRequest, db: AsyncSession
         )
         pm = result.scalar_one_or_none()
         if pm:
-            assigned_to_id = pm.id
+            assigned_to = pm.user_id
 
     task = Task(
         project_id=project_id,
         title=body.title,
         description=body.description or "",
         assigned_to_name=assigned_to_name,
-        assigned_to_id=assigned_to_id,
+        assigned_to=assigned_to,
         priority=body.priority,
         status="todo",
         due_date=body.due_date,

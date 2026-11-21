@@ -41,7 +41,7 @@ class Project(Base):
     completion_percentage = Column(Integer, default=0)
     requirements = Column(Text)
     technology_stack = Column(JSONB, default=list)
-    metadata = Column(JSONB, default=dict)
+    extra_data = Column("metadata", JSONB, default=dict)
     created_by = Column(UUID(as_uuid=False), ForeignKey("users.id"))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -84,9 +84,11 @@ class Meeting(Base):
     main_topics = Column(JSONB, default=list)
     participants = Column(JSONB, default=list)
     status = Column(String(50), default="pending")
+    processing_status = Column(String(50), default="pending")
+    analysis_result = Column(JSONB, default=dict)
     analysis_error = Column(Text)
     workflow_id = Column(Text)
-    metadata = Column(JSONB, default=dict)
+    extra_data = Column("metadata", JSONB, default=dict)
     uploaded_by = Column(UUID(as_uuid=False), ForeignKey("users.id"))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -109,7 +111,7 @@ class Decision(Base):
     status = Column(String(50), default="proposed")
     evidence = Column(JSONB, default=list)
     confidence = Column(Float, default=0.8)
-    metadata = Column(JSONB, default=dict)
+    extra_data = Column("metadata", JSONB, default=dict)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -133,22 +135,22 @@ class Task(Base):
     id = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
     project_id = Column(UUID(as_uuid=False), ForeignKey("projects.id"), nullable=False)
     meeting_id = Column(UUID(as_uuid=False), ForeignKey("meetings.id"))
+    source_meeting_id = Column(UUID(as_uuid=False), ForeignKey("meetings.id"))
     title = Column(String(500), nullable=False)
     description = Column(Text)
     assigned_to_name = Column(Text)
-    assigned_to_id = Column(UUID(as_uuid=False), ForeignKey("project_members.id"))
+    assigned_to = Column(UUID(as_uuid=False), ForeignKey("users.id"))
     priority = Column(String(50), default="medium")
     status = Column(String(50), default="proposed")
     due_date = Column(Date)
     completed_at = Column(DateTime(timezone=True))
-    evidence = Column(JSONB, default=list)
-    metadata = Column(JSONB, default=dict)
+    source_evidence = Column(JSONB, default=list)
+    extra_data = Column("metadata", JSONB, default=dict)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     project = relationship("Project", back_populates="tasks")
     source_meeting = relationship("Meeting", foreign_keys=[meeting_id], back_populates="tasks")
-    assignee = relationship("ProjectMember", foreign_keys=[assigned_to_id])
 
 
 class Conflict(Base):
@@ -170,7 +172,7 @@ class Conflict(Base):
     resolution_note = Column(Text)
     resolved_by = Column(UUID(as_uuid=False), ForeignKey("users.id"))
     resolved_at = Column(DateTime(timezone=True))
-    metadata = Column(JSONB, default=dict)
+    extra_data = Column("metadata", JSONB, default=dict)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -233,7 +235,7 @@ class TranscriptChunk(Base):
     content = Column(Text, nullable=False)
     speaker = Column(Text)
     timestamp_ref = Column(Text)
-    metadata = Column(JSONB, default=dict)
+    extra_data = Column("metadata", JSONB, default=dict)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     meeting = relationship("Meeting", back_populates="transcript_chunks")
@@ -253,7 +255,7 @@ class ProjectRisk(Base):
     is_active = Column(Boolean, default=True)
     detected_at = Column(DateTime(timezone=True), server_default=func.now())
     resolved_at = Column(DateTime(timezone=True))
-    metadata = Column(JSONB, default=dict)
+    extra_data = Column("metadata", JSONB, default=dict)
 
 
 class CopilotConversation(Base):
