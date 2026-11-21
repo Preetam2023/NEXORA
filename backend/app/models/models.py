@@ -195,7 +195,7 @@ class ActivityLog(Base):
     actor_id = Column(UUID(as_uuid=False), ForeignKey("users.id"))
     event_type = Column(String(100), nullable=False)
     description = Column(Text)
-    metadata = Column(JSONB)
+    extra_data = Column("metadata", JSONB)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 

@@ -63,7 +63,7 @@ async def apply_approved_changes(state: WorkflowState, db: AsyncSession) -> dict
             project_id=state.project_id,
             event_type="decision_approved",
             description=f"Decision approved: {d.title}",
-            metadata={"decision_id": decision.id, "meeting_id": state.meeting_id},
+            extra_data={"decision_id": decision.id, "meeting_id": state.meeting_id},
         ))
 
     # 2. Write tasks — resolve assigned_to UUID by name lookup
@@ -108,7 +108,7 @@ async def apply_approved_changes(state: WorkflowState, db: AsyncSession) -> dict
             project_id=state.project_id,
             event_type="task_created",
             description=f"Task created: {t.title}",
-            metadata={
+            extra_data={
                 "task_id": task.id,
                 "assigned_to_name": t.assigned_to_name,
                 "meeting_id": state.meeting_id,
@@ -174,7 +174,7 @@ async def apply_conflict_resolution(
         project_id=conflict.project_id,
         event_type="conflict_resolved",
         description=f"Conflict resolved: {conflict.title}",
-        metadata={
+        extra_data={
             "conflict_id": conflict_id,
             "resolution": resolution,
             "approved_by": approved_by,
