@@ -379,9 +379,7 @@ INSERT INTO activity_logs (project_id, meeting_id, actor_name, action, entity_ty
     ('aaaaaaaa-0000-0000-0000-000000000001', 'cccccccc-0000-0000-0000-000000000002', 'Rahul Sharma', 'meeting_analyzed', 'meeting', 'Technical Review analyzed — 2 conflicts detected: DB tech change, ownership change'),
     ('aaaaaaaa-0000-0000-0000-000000000001', 'cccccccc-0000-0000-0000-000000000003', 'Rahul Sharma', 'meeting_analyzed', 'meeting', 'Sprint Review analyzed — PostgreSQL formally approved, conflicts resolved'),
     ('aaaaaaaa-0000-0000-0000-000000000001', NULL, 'Rahul Sharma', 'conflict_resolved', 'conflict', 'Database technology conflict resolved — PostgreSQL approved'),
-    ('aaaaaaaa-0000-0000-0000-000000000001', NULL, 'Rahul Sharma', 'conflict_resolved', 'conflict', 'Ownership conflict resolved — Sanchita confirmed as DB lead'),
-    ('aaaaaaaa-0000-0000-0000-000000000001', 'cccccccc-0000-0000-0000-000000000004', 'Rahul Sharma', 'meeting_analyzed', 'meeting', 'Thursday check-in analyzed — API progress 60%, QA risk flagged'),
-    ('aaaaaaaa-0000-0000-0000-000000000001', 'cccccccc-0000-0000-0000-000000000005', 'Rahul Sharma', 'meeting_analyzed', 'meeting', 'Week 2 kickoff analyzed — API complete, testing phase begins');
+    ('aaaaaaaa-0000-0000-0000-000000000001', NULL, 'Rahul Sharma', 'conflict_resolved', 'conflict', 'Ownership conflict resolved — Sanchita confirmed as DB lead');
 
 -- ─────────────────────────────────────────────
 -- UPDATE: Add AI summaries to existing analyzed meetings
@@ -514,4 +512,10 @@ INSERT INTO tasks (id, project_id, meeting_id, title, assigned_to_name, priority
     'in_progress',
     '2024-11-28'
 )
+ON CONFLICT DO NOTHING;
+
+-- Activity log entries for meetings 4 & 5 (inserted after those meetings exist)
+INSERT INTO activity_logs (project_id, meeting_id, actor_name, action, entity_type, summary) VALUES
+    ('aaaaaaaa-0000-0000-0000-000000000001', 'cccccccc-0000-0000-0000-000000000004', 'Rahul Sharma', 'meeting_analyzed', 'meeting', 'Thursday check-in analyzed — API progress 60%, QA risk flagged'),
+    ('aaaaaaaa-0000-0000-0000-000000000001', 'cccccccc-0000-0000-0000-000000000005', 'Rahul Sharma', 'meeting_analyzed', 'meeting', 'Week 2 kickoff analyzed — API complete, testing phase begins')
 ON CONFLICT DO NOTHING;
