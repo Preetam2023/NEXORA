@@ -48,10 +48,12 @@ export default function Copilot() {
       { project_id: projectId, message: text },
       (e: SSEEvent) => {
         if (e.type === 'token' && 'text' in e.payload) {
-          setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: m.content + e.payload.text } : m))
+          const text = (e.payload as { text: string }).text
+          setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: m.content + text } : m))
         }
         if (e.type === 'done' && 'sources' in e.payload) {
-          setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, sources: e.payload.sources as Message['sources'], streaming: false } : m))
+          const sources = (e.payload as { sources: Message['sources'] }).sources
+          setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, sources, streaming: false } : m))
           setStreaming(false)
         }
         if (e.type === 'error') {

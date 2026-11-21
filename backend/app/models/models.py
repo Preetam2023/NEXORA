@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, date
+from datetime import datetime
 
 from sqlalchemy import (
     Boolean, Column, Date, DateTime, Float, ForeignKey,
@@ -25,7 +25,9 @@ class User(Base):
     name = Column(String(255), nullable=False)
     email = Column(String(255), nullable=False, unique=True)
     role = Column(String(100), default="member")
+    avatar_url = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class Project(Base):
@@ -34,15 +36,13 @@ class Project(Base):
     id = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
     name = Column(String(255), nullable=False)
     description = Column(Text)
-    manager_id = Column(UUID(as_uuid=False), ForeignKey("users.id"))
-    start_date = Column(Date)
-    deadline = Column(Date)
     status = Column(String(50), default="active")
-    health = Column(String(50), default="on_track")
-    completion_percentage = Column(Float, default=0.0)
-    objectives = Column(Text)
-    technology_stack = Column(JSONB, default=list)
+    health = Column(String(50), default="healthy")
+    completion_percentage = Column(Integer, default=0)
     requirements = Column(Text)
+    technology_stack = Column(JSONB, default=list)
+    metadata = Column(JSONB, default=dict)
+    created_by = Column(UUID(as_uuid=False), ForeignKey("users.id"))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -58,9 +58,11 @@ class ProjectMember(Base):
 
     id = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
     project_id = Column(UUID(as_uuid=False), ForeignKey("projects.id"), nullable=False)
-    user_id = Column(UUID(as_uuid=False), ForeignKey("users.id"), nullable=False)
-    project_role = Column(String(100), default="developer")
-    responsibilities = Column(Text)
+    user_id = Column(UUID(as_uuid=False), ForeignKey("users.id"), nullable=True)
+    name = Column(Text, nullable=False)
+    email = Column(Text)
+    role = Column(String(100), default="member")
+    avatar_url = Column(Text)
     joined_at = Column(DateTime(timezone=True), server_default=func.now())
 
     project = relationship("Project", back_populates="members")
@@ -75,16 +77,23 @@ class Meeting(Base):
     title = Column(String(255), nullable=False)
     meeting_type = Column(String(100), default="general")
     meeting_date = Column(DateTime(timezone=True))
+    duration_mins = Column(Integer)
     transcript = Column(Text)
-    participants = Column(JSONB, default=list)
+    transcript_url = Column(Text)
     summary = Column(Text)
-    processing_status = Column(String(50), default="pending")
-    analysis_result = Column(JSONB)
+    main_topics = Column(JSONB, default=list)
+    participants = Column(JSONB, default=list)
+    status = Column(String(50), default="pending")
+    analysis_error = Column(Text)
+    workflow_id = Column(Text)
+    metadata = Column(JSONB, default=dict)
+    uploaded_by = Column(UUID(as_uuid=False), ForeignKey("users.id"))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     project = relationship("Project", back_populates="meetings")
     decisions = relationship("Decision", back_populates="meeting")
-    tasks = relationship("Task", foreign_keys="Task.source_meeting_id", back_populates="source_meeting")
+    tasks = relationship("Task", foreign_keys="Task.meeting_id", back_populates="source_meeting")
     transcript_chunks = relationship("TranscriptChunk", back_populates="meeting", cascade="all, delete-orphan")
 
 
@@ -100,6 +109,7 @@ class Decision(Base):
     status = Column(String(50), default="proposed")
     evidence = Column(JSONB, default=list)
     confidence = Column(Float, default=0.8)
+    metadata = Column(JSONB, default=dict)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -112,12 +122,9 @@ class DecisionVersion(Base):
 
     id = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
     decision_id = Column(UUID(as_uuid=False), ForeignKey("decisions.id"), nullable=False)
-    previous_value = Column(JSONB)
-    new_value = Column(JSONB)
+    supersedes_id = Column(UUID(as_uuid=False), ForeignKey("decisions.id"))
     change_reason = Column(Text)
-    source_meeting_id = Column(UUID(as_uuid=False), ForeignKey("meetings.id"))
-    approved_by = Column(UUID(as_uuid=False), ForeignKey("users.id"))
-    approved_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 class Task(Base):
@@ -125,20 +132,23 @@ class Task(Base):
 
     id = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
     project_id = Column(UUID(as_uuid=False), ForeignKey("projects.id"), nullable=False)
+    meeting_id = Column(UUID(as_uuid=False), ForeignKey("meetings.id"))
     title = Column(String(500), nullable=False)
     description = Column(Text)
-    assigned_to = Column(UUID(as_uuid=False), ForeignKey("users.id"))
+    assigned_to_name = Column(Text)
+    assigned_to_id = Column(UUID(as_uuid=False), ForeignKey("project_members.id"))
     priority = Column(String(50), default="medium")
-    status = Column(String(50), default="pending")
+    status = Column(String(50), default="proposed")
     due_date = Column(Date)
-    source_meeting_id = Column(UUID(as_uuid=False), ForeignKey("meetings.id"))
-    source_evidence = Column(JSONB)
+    completed_at = Column(DateTime(timezone=True))
+    evidence = Column(JSONB, default=list)
+    metadata = Column(JSONB, default=dict)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     project = relationship("Project", back_populates="tasks")
-    source_meeting = relationship("Meeting", foreign_keys=[source_meeting_id], back_populates="tasks")
-    assignee = relationship("User", foreign_keys=[assigned_to])
+    source_meeting = relationship("Meeting", foreign_keys=[meeting_id], back_populates="tasks")
+    assignee = relationship("ProjectMember", foreign_keys=[assigned_to_id])
 
 
 class Conflict(Base):
@@ -146,19 +156,23 @@ class Conflict(Base):
 
     id = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
     project_id = Column(UUID(as_uuid=False), ForeignKey("projects.id"), nullable=False)
-    category = Column(String(100), nullable=False)
+    meeting_id = Column(UUID(as_uuid=False), ForeignKey("meetings.id"))
+    category = Column(String(100), nullable=False, default="other")
     title = Column(String(500), nullable=False)
-    previous_state = Column(JSONB)
-    new_state = Column(JSONB)
+    previous_state = Column(JSONB, default=dict)
+    new_state = Column(JSONB, default=dict)
     evidence = Column(JSONB, default=list)
     severity = Column(String(50), default="medium")
-    confidence = Column(Float, default=0.8)
-    recommendation = Column(JSONB)
-    status = Column(String(50), default="open")
+    confidence = Column(Float, default=0.9)
     ai_explanation = Column(Text)
-    impact_analysis = Column(JSONB)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    recommendation = Column(JSONB, default=dict)
+    status = Column(String(50), default="open")
+    resolution_note = Column(Text)
+    resolved_by = Column(UUID(as_uuid=False), ForeignKey("users.id"))
     resolved_at = Column(DateTime(timezone=True))
+    metadata = Column(JSONB, default=dict)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     project = relationship("Project", back_populates="conflicts")
 
@@ -168,12 +182,14 @@ class Approval(Base):
 
     id = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
     project_id = Column(UUID(as_uuid=False), ForeignKey("projects.id"), nullable=False)
-    conflict_id = Column(UUID(as_uuid=False), ForeignKey("conflicts.id"))
-    proposed_change = Column(JSONB)
-    approval_status = Column(String(50), default="pending")
+    meeting_id = Column(UUID(as_uuid=False), ForeignKey("meetings.id"))
+    entity_type = Column(Text, nullable=False)
+    entity_id = Column(UUID(as_uuid=False), nullable=False)
+    action = Column(Text, nullable=False)
     approved_by = Column(UUID(as_uuid=False), ForeignKey("users.id"))
+    approved_by_name = Column(Text)
+    note = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    approved_at = Column(DateTime(timezone=True))
 
 
 class ProjectState(Base):
@@ -182,8 +198,12 @@ class ProjectState(Base):
     id = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
     project_id = Column(UUID(as_uuid=False), ForeignKey("projects.id"), nullable=False)
     state_key = Column(String(255), nullable=False)
-    state_value = Column(JSONB)
+    state_value = Column(Text, nullable=False)
+    state_category = Column(Text, default="general")
+    source_meeting_id = Column(UUID(as_uuid=False), ForeignKey("meetings.id"))
     source_decision_id = Column(UUID(as_uuid=False), ForeignKey("decisions.id"))
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
@@ -192,10 +212,14 @@ class ActivityLog(Base):
 
     id = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
     project_id = Column(UUID(as_uuid=False), ForeignKey("projects.id"))
+    meeting_id = Column(UUID(as_uuid=False), ForeignKey("meetings.id"))
+    actor_name = Column(Text)
     actor_id = Column(UUID(as_uuid=False), ForeignKey("users.id"))
-    event_type = Column(String(100), nullable=False)
-    description = Column(Text)
-    metadata = Column(JSONB)
+    action = Column(Text, nullable=False)
+    entity_type = Column(Text)
+    entity_id = Column(UUID(as_uuid=False))
+    summary = Column(Text)
+    metadata = Column(JSONB, default=dict)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -205,10 +229,11 @@ class TranscriptChunk(Base):
     id = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
     meeting_id = Column(UUID(as_uuid=False), ForeignKey("meetings.id"), nullable=False)
     project_id = Column(UUID(as_uuid=False), ForeignKey("projects.id"), nullable=False)
-    speaker = Column(String(255))
-    timestamp_reference = Column(String(100))
+    chunk_index = Column(Integer, nullable=False)
     content = Column(Text, nullable=False)
-    # embedding column added by pgvector migration — stored as text here for compat
+    speaker = Column(Text)
+    timestamp_ref = Column(Text)
+    metadata = Column(JSONB, default=dict)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     meeting = relationship("Meeting", back_populates="transcript_chunks")
@@ -219,13 +244,16 @@ class ProjectRisk(Base):
 
     id = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
     project_id = Column(UUID(as_uuid=False), ForeignKey("projects.id"), nullable=False)
+    category = Column(Text, nullable=False)
     title = Column(String(500), nullable=False)
     description = Column(Text)
     severity = Column(String(50), default="medium")
-    source_type = Column(String(100))
-    source_id = Column(UUID(as_uuid=False))
-    status = Column(String(50), default="open")
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    entity_type = Column(Text)
+    entity_id = Column(UUID(as_uuid=False))
+    is_active = Column(Boolean, default=True)
+    detected_at = Column(DateTime(timezone=True), server_default=func.now())
+    resolved_at = Column(DateTime(timezone=True))
+    metadata = Column(JSONB, default=dict)
 
 
 class CopilotConversation(Base):
@@ -236,6 +264,7 @@ class CopilotConversation(Base):
     user_id = Column(UUID(as_uuid=False), ForeignKey("users.id"))
     title = Column(String(255))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     messages = relationship("CopilotMessage", back_populates="conversation", cascade="all, delete-orphan")
 
@@ -245,7 +274,7 @@ class CopilotMessage(Base):
 
     id = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
     conversation_id = Column(UUID(as_uuid=False), ForeignKey("copilot_conversations.id"), nullable=False)
-    role = Column(String(20), nullable=False)  # "user" | "assistant"
+    role = Column(String(20), nullable=False)
     content = Column(Text, nullable=False)
     sources = Column(JSONB, default=list)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
