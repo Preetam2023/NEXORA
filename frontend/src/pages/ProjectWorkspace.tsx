@@ -9,7 +9,7 @@ import {
 import { cn, formatDate, formatDateTime, statusColor, severityColor, healthDot, initials, avatarBg } from '@/lib/utils'
 import {
   AlertTriangle, CheckCircle2, Clock, Users, Zap, FileText,
-  ListChecks, Brain, Plus, Calendar, Shield,
+  ListChecks, Brain, Plus, Calendar, Shield, Pencil, X, Check,
 } from 'lucide-react'
 import type { Task, Member, Project, Meeting } from '@/types/api'
 
@@ -47,14 +47,14 @@ export default function ProjectWorkspace({ onOpenCopilot }: Props) {
       <div className="bg-white border-b border-slate-100 px-6 py-4 flex-shrink-0">
         <div className="flex items-start justify-between">
           <div>
-            <div className="flex items-center gap-2 mb-0.5">
-              <div className={cn('w-2 h-2 rounded-full', healthDot(project.health))} />
-              <h1 className="text-lg font-bold text-slate-900 tracking-tight">{project.name}</h1>
-              <span className={cn('text-xs px-2 py-0.5 rounded-md font-medium', statusColor(project.health))}>
+            <div className="flex items-center gap-2.5 mb-0.5">
+              <div className={cn('w-2.5 h-2.5 rounded-full', healthDot(project.health))} />
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{project.name}</h1>
+              <span className={cn('text-xs px-2.5 py-1 rounded-md font-semibold', statusColor(project.health))}>
                 {project.health.replace('_', ' ')}
               </span>
             </div>
-            <p className="text-slate-400 text-sm ml-3.5">{project.description}</p>
+            <p className="text-slate-500 text-sm ml-4 font-medium">{project.description}</p>
           </div>
           <div className="flex items-center gap-3">
             <div className="text-right">
@@ -320,33 +320,42 @@ function MeetingsTab({ projectId }: { projectId: string }) {
                 </div>
                 <div className="flex-1 bg-white border border-slate-200 rounded-xl p-4 shadow-sm mb-1">
                   <div className="flex items-start justify-between">
-                    <div>
-                      <p className="font-semibold text-slate-900 text-sm">{meeting.title}</p>
+                    <div className="flex-1 min-w-0 mr-3">
+                      <p className="font-bold text-slate-900 text-sm" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{meeting.title}</p>
                       <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-400">
                         <Calendar size={11} />
-                        <span>{meeting.meeting_date ? formatDate(meeting.meeting_date) : 'Date unknown'}</span>
+                        <span>{meeting.meeting_date ? formatDate(meeting.meeting_date) : formatDate(meeting.created_at)}</span>
                         {meeting.participants.length > 0 && <><span>·</span><Users size={11} /><span>{meeting.participants.length} participants</span></>}
+                        {meeting.meeting_type && meeting.meeting_type !== 'general' && <><span>·</span><span className="capitalize">{meeting.meeting_type.replace(/_/g, ' ')}</span></>}
                       </div>
                     </div>
-                    <span className={cn('text-xs px-2 py-0.5 rounded-md font-medium flex-shrink-0', statusColor(meeting.status))}>
+                    <span className={cn('text-xs px-2 py-0.5 rounded-md font-semibold flex-shrink-0', statusColor(meeting.status))}>
                       {meeting.status}
                     </span>
                   </div>
-                  {meeting.summary && (
+                  {meeting.summary ? (
                     <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                      <p className="text-xs font-medium text-blue-700 mb-1">AI Summary</p>
+                      <p className="text-xs font-semibold text-blue-700 mb-1">AI Summary</p>
                       <p className="text-xs text-slate-600 leading-relaxed">{meeting.summary}</p>
                     </div>
-                  )}
+                  ) : meeting.transcript ? (
+                    <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                      <p className="text-xs font-semibold text-slate-500 mb-1">Transcript excerpt</p>
+                      <p className="text-xs text-slate-500 leading-relaxed italic line-clamp-3">{meeting.transcript.slice(0, 240)}…</p>
+                      {meeting.status !== 'analyzed' && (
+                        <p className="text-xs text-amber-600 font-medium mt-1.5">Analysis not yet triggered</p>
+                      )}
+                    </div>
+                  ) : null}
                   {meeting.participants.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1">
-                      {meeting.participants.slice(0, 5).map(p => (
-                        <span key={p} className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md">{p}</span>
+                      {meeting.participants.slice(0, 6).map(p => (
+                        <span key={p} className="text-xs bg-slate-100 text-slate-600 font-medium px-2 py-0.5 rounded-md">{p}</span>
                       ))}
                     </div>
                   )}
                   {analyzingId === meeting.id && (
-                    <div className="mt-2 flex items-center gap-2 text-xs text-blue-600">
+                    <div className="mt-2 flex items-center gap-2 text-xs text-blue-600 font-medium">
                       <div className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
                       Analyzing transcript…
                     </div>
@@ -432,6 +441,14 @@ function DecisionsTab({ projectId }: { projectId: string }) {
 
 // ── Tasks Tab ──────────────────────────────────────────────────────────────────
 
+interface TaskEditState {
+  title: string
+  assigned_to_name: string
+  priority: Task['priority']
+  due_date: string
+  status: Task['status']
+}
+
 function TasksFullTab({ projectId }: { projectId: string }) {
   const qc = useQueryClient()
   const { data, isLoading } = useQuery({ queryKey: ['tasks', projectId], queryFn: () => getTasks(projectId) })
@@ -442,12 +459,43 @@ function TasksFullTab({ projectId }: { projectId: string }) {
   const [newPriority, setNewPriority] = useState<Task['priority']>('medium')
   const [newDue, setNewDue] = useState('')
   const [loading, setLoading] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editState, setEditState] = useState<TaskEditState | null>(null)
+  const [savingId, setSavingId] = useState<string | null>(null)
 
   const allMembers = membersData?.data ?? []
 
-  async function handleStatusChange(taskId: string, status: Task['status']) {
-    await updateTask(taskId, { status })
-    await qc.invalidateQueries({ queryKey: ['tasks', projectId] })
+  function startEdit(task: Task) {
+    setEditingId(task.id)
+    setEditState({
+      title: task.title,
+      assigned_to_name: task.assigned_to_name ?? '',
+      priority: task.priority,
+      due_date: task.due_date ?? '',
+      status: task.status,
+    })
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    setEditState(null)
+  }
+
+  async function saveEdit(taskId: string) {
+    if (!editState) return
+    setSavingId(taskId)
+    try {
+      await updateTask(taskId, {
+        title: editState.title.trim() || undefined,
+        assigned_to_name: editState.assigned_to_name || undefined,
+        priority: editState.priority,
+        due_date: editState.due_date || undefined,
+        status: editState.status,
+      })
+      await qc.invalidateQueries({ queryKey: ['tasks', projectId] })
+      setEditingId(null)
+      setEditState(null)
+    } finally { setSavingId(null) }
   }
 
   async function handleCreate() {
@@ -480,18 +528,19 @@ function TasksFullTab({ projectId }: { projectId: string }) {
   return (
     <div className="max-w-4xl animate-in">
       <div className="flex items-center justify-between mb-5">
-        <h2 className="font-semibold text-slate-800">Tasks ({tasks.length})</h2>
+        <h2 className="font-bold text-slate-900 text-base" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Tasks ({tasks.length})</h2>
         <button
           onClick={() => setShowNew(v => !v)}
-          className="flex items-center gap-2 bg-[#0F172A] hover:bg-slate-800 text-white text-xs px-3 py-2 rounded-lg transition-colors font-medium"
+          className="flex items-center gap-2 bg-[#0F172A] hover:bg-slate-800 text-white text-sm px-4 py-2 rounded-lg transition-colors font-semibold"
         >
-          <Plus size={13} />
+          <Plus size={14} />
           New Task
         </button>
       </div>
 
       {showNew && (
         <div className="bg-white border border-slate-200 rounded-xl p-4 mb-5 shadow-sm animate-in">
+          <p className="text-sm font-semibold text-slate-700 mb-3">New Task</p>
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
               <input value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="Task title…" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400" />
@@ -508,9 +557,9 @@ function TasksFullTab({ projectId }: { projectId: string }) {
             </div>
             <div>
               <select value={newPriority} onChange={e => setNewPriority(e.target.value as Task['priority'])} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400">
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
+                <option value="low">Low priority</option>
+                <option value="medium">Medium priority</option>
+                <option value="high">High priority</option>
                 <option value="critical">Critical</option>
               </select>
             </div>
@@ -519,7 +568,7 @@ function TasksFullTab({ projectId }: { projectId: string }) {
             </div>
             <div className="flex gap-2 justify-end col-span-2">
               <button onClick={() => setShowNew(false)} className="text-xs text-slate-500 px-3 py-2 rounded-lg hover:text-slate-700">Cancel</button>
-              <button onClick={handleCreate} disabled={loading || !newTitle.trim()} className="bg-[#0F172A] text-white text-xs px-4 py-2 rounded-lg font-medium disabled:opacity-40 hover:bg-slate-800 transition-colors">
+              <button onClick={handleCreate} disabled={loading || !newTitle.trim()} className="bg-[#0F172A] text-white text-sm px-4 py-2 rounded-lg font-semibold disabled:opacity-40 hover:bg-slate-800 transition-colors">
                 {loading ? 'Adding…' : 'Add Task'}
               </button>
             </div>
@@ -530,47 +579,131 @@ function TasksFullTab({ projectId }: { projectId: string }) {
       {tasks.length === 0 && !showNew && (
         <div className="bg-white border border-dashed border-slate-200 rounded-xl p-10 text-center">
           <ListChecks size={28} className="text-slate-200 mx-auto mb-3" />
-          <p className="text-slate-400 text-sm">No tasks yet</p>
+          <p className="text-slate-500 font-medium text-sm">No tasks yet</p>
           <p className="text-slate-400 text-xs mt-1">Upload a meeting to extract tasks automatically, or add one manually</p>
         </div>
       )}
 
       {Object.entries(grouped).map(([group, groupTasks]) => groupTasks.length === 0 ? null : (
         <div key={group} className="mb-6">
-          <h3 className="text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">{group} <span className="font-normal normal-case">({groupTasks.length})</span></h3>
+          <h3 className="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">{group} <span className="font-normal normal-case">({groupTasks.length})</span></h3>
           <div className="space-y-2">
-            {groupTasks.map(task => (
-              <div key={task.id} className={cn(
-                'bg-white border rounded-xl p-4 shadow-sm flex items-start gap-4',
-                task.status === 'proposed' ? 'border-amber-200 border-dashed' : 'border-slate-200',
-              )}>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-slate-800 text-sm">{task.title}</p>
-                  <div className="flex flex-wrap gap-2 mt-1.5">
-                    {task.assigned_to_name && (
-                      <span className="text-xs text-slate-500 flex items-center gap-1">
-                        <Users size={10} />{task.assigned_to_name}
-                      </span>
-                    )}
-                    {task.due_date && (
-                      <span className="text-xs text-slate-500 flex items-center gap-1">
-                        <Calendar size={10} />{formatDate(task.due_date)}
-                      </span>
-                    )}
-                    <span className={cn('text-xs px-1.5 py-0.5 rounded font-medium capitalize', severityColor(task.priority))}>
-                      {task.priority}
-                    </span>
-                  </div>
+            {groupTasks.map(task => {
+              const isEditing = editingId === task.id
+              return (
+                <div key={task.id} className={cn(
+                  'bg-white border rounded-xl shadow-sm overflow-hidden',
+                  task.status === 'proposed' ? 'border-amber-200 border-dashed' :
+                  task.priority === 'critical' ? 'border-red-200' :
+                  task.priority === 'high' ? 'border-orange-200' : 'border-slate-200',
+                )}>
+                  {/* Priority bar */}
+                  {(task.priority === 'critical' || task.priority === 'high') && (
+                    <div className={cn('h-0.5', task.priority === 'critical' ? 'bg-red-400' : 'bg-orange-400')} />
+                  )}
+
+                  {isEditing && editState ? (
+                    <div className="p-4 space-y-3">
+                      <input
+                        value={editState.title}
+                        onChange={e => setEditState(s => s ? { ...s, title: e.target.value } : s)}
+                        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+                        autoFocus
+                      />
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        {/* Assignee */}
+                        {allMembers.length > 0 ? (
+                          <select
+                            value={editState.assigned_to_name}
+                            onChange={e => setEditState(s => s ? { ...s, assigned_to_name: e.target.value } : s)}
+                            className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+                          >
+                            <option value="">Unassigned</option>
+                            {allMembers.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+                          </select>
+                        ) : (
+                          <input
+                            value={editState.assigned_to_name}
+                            onChange={e => setEditState(s => s ? { ...s, assigned_to_name: e.target.value } : s)}
+                            placeholder="Assignee…"
+                            className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+                          />
+                        )}
+                        {/* Priority */}
+                        <select
+                          value={editState.priority}
+                          onChange={e => setEditState(s => s ? { ...s, priority: e.target.value as Task['priority'] } : s)}
+                          className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+                        >
+                          <option value="low">Low</option>
+                          <option value="medium">Medium</option>
+                          <option value="high">High</option>
+                          <option value="critical">Critical</option>
+                        </select>
+                        {/* Status */}
+                        <select
+                          value={editState.status}
+                          onChange={e => setEditState(s => s ? { ...s, status: e.target.value as Task['status'] } : s)}
+                          className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+                        >
+                          {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+                        </select>
+                        {/* Due date */}
+                        <input
+                          type="date"
+                          value={editState.due_date}
+                          onChange={e => setEditState(s => s ? { ...s, due_date: e.target.value } : s)}
+                          className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 text-slate-600"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => saveEdit(task.id)}
+                          disabled={savingId === task.id}
+                          className="flex items-center gap-1.5 bg-[#0F172A] text-white text-xs px-3 py-1.5 rounded-lg font-semibold hover:bg-slate-800 transition-colors disabled:opacity-40"
+                        >
+                          <Check size={12} />{savingId === task.id ? 'Saving…' : 'Save'}
+                        </button>
+                        <button onClick={cancelEdit} className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50">
+                          <X size={12} />Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-4 flex items-start gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-slate-800 text-sm">{task.title}</p>
+                        <div className="flex flex-wrap gap-2 mt-1.5 items-center">
+                          {task.assigned_to_name && (
+                            <span className="text-xs text-slate-500 flex items-center gap-1 font-medium">
+                              <Users size={10} />{task.assigned_to_name}
+                            </span>
+                          )}
+                          {task.due_date && (
+                            <span className={cn('text-xs flex items-center gap-1 font-medium', new Date(task.due_date) < new Date() ? 'text-red-500' : 'text-slate-500')}>
+                              <Calendar size={10} />{formatDate(task.due_date)}
+                            </span>
+                          )}
+                          <span className={cn('text-xs px-1.5 py-0.5 rounded font-semibold capitalize', severityColor(task.priority))}>
+                            {task.priority}
+                          </span>
+                          <span className={cn('text-xs px-2 py-0.5 rounded-md font-semibold', statusColor(task.status))}>
+                            {task.status.replace('_', ' ')}
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => startEdit(task)}
+                        className="text-slate-300 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors flex-shrink-0"
+                        title="Edit task"
+                      >
+                        <Pencil size={13} />
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <select
-                  value={task.status}
-                  onChange={e => handleStatusChange(task.id, e.target.value as Task['status'])}
-                  className={cn('text-xs px-2.5 py-1.5 rounded-lg border font-medium bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer flex-shrink-0', statusColor(task.status))}
-                >
-                  {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
-                </select>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       ))}

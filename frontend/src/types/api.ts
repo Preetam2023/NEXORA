@@ -238,6 +238,7 @@ export interface CreateTaskRequest {
 }
 
 export interface UpdateTaskRequest {
+  title?: string
   status?: Task['status']
   assigned_to_name?: string
   assigned_to_id?: string
