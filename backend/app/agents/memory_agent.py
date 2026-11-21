@@ -1,21 +1,107 @@
-"""Memory Agent — retrieves historical project context from the database.
-TODO (Preetam — AI-4): implement retrieve_historical_context node.
-Pure SQL retrieval — no LLM calls in this node.
-"""
+"""Memory Agent — retrieves historical project context. Pure SQL, no LLM."""
 from __future__ import annotations
 
-from app.agents.state import WorkflowState, HistoricalContext
+import logging
+
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.agents.state import HistoricalContext, WorkflowState
+from app.models.models import Decision, Project, ProjectMember, ProjectState, Task, User
+
+logger = logging.getLogger(__name__)
 
 
-async def retrieve_historical_context(state: WorkflowState, db) -> dict:
-    """LangGraph node — fetch historical decisions, tasks, assignments, project state.
-    TODO (Preetam — AI-4): implement this async function.
+async def retrieve_historical_context(state: WorkflowState, db: AsyncSession) -> dict:
+    """LangGraph node — fetch all historical context needed by Conflict Analyst (AI-4).
+
+    Returns approved decisions, active tasks with owners, current project_state KV pairs,
+    and project requirements / tech stack. No LLM call — pure SQL reads.
     """
-    # TODO: implement
-    # Query these tables for state.project_id:
-    # 1. decisions WHERE status='approved' ORDER BY created_at — historical approved decisions
-    # 2. tasks WHERE status NOT IN ('completed','cancelled') — active task ownership
-    # 3. project_state — current approved state key-value pairs (e.g. database_technology=mongodb)
-    # 4. project.requirements, project.technology_stack — for recommendation context
-    # Return: {"historical_context": HistoricalContext(...)}
-    raise NotImplementedError("Memory Agent not yet implemented — Preetam AI-4")
+    pid = state.project_id
+
+    # 1. Approved decisions — full history (title, description, category, evidence)
+    result = await db.execute(
+        select(Decision)
+        .where(Decision.project_id == pid, Decision.status == "approved")
+        .order_by(Decision.created_at)
+    )
+    approved_decisions = [
+        {
+            "id": str(d.id),
+            "title": d.title,
+            "description": d.description,
+            "category": d.category,
+            "evidence": d.evidence or [],
+            "created_at": d.created_at.isoformat() if d.created_at else None,
+        }
+        for d in result.scalars().all()
+    ]
+
+    # 2. Active tasks with assigned member names (JOIN users)
+    result = await db.execute(
+        select(Task, User.name.label("assignee_name"))
+        .outerjoin(User, Task.assigned_to == User.id)
+        .where(
+            Task.project_id == pid,
+            Task.status.notin_(["completed", "cancelled"]),
+        )
+        .order_by(Task.created_at)
+    )
+    rows = result.all()
+    current_assignments = [
+        {
+            "id": str(r.Task.id),
+            "title": r.Task.title,
+            "assigned_to_name": r.assignee_name,
+            "priority": r.Task.priority,
+            "status": r.Task.status,
+            "due_date": r.Task.due_date.isoformat() if r.Task.due_date else None,
+        }
+        for r in rows
+    ]
+
+    # 3. project_state key-value store — the living project truth
+    result = await db.execute(
+        select(ProjectState).where(ProjectState.project_id == pid)
+    )
+    project_state: dict = {
+        ps.state_key: ps.state_value
+        for ps in result.scalars().all()
+    }
+
+    # 4. Project requirements and tech stack for recommendation context
+    result = await db.execute(select(Project).where(Project.id == pid))
+    project = result.scalar_one_or_none()
+    requirements = project.requirements or "" if project else ""
+    tech_stack = project.technology_stack or [] if project else []
+
+    # 5. Team members and their roles
+    result = await db.execute(
+        select(ProjectMember, User.name.label("user_name"))
+        .join(User, ProjectMember.user_id == User.id)
+        .where(ProjectMember.project_id == pid)
+    )
+    team = [
+        f"{r.user_name} ({r.ProjectMember.project_role})"
+        for r in result.all()
+    ]
+    project_requirements = (
+        f"Requirements: {requirements}\n"
+        f"Tech stack: {', '.join(tech_stack) if isinstance(tech_stack, list) else tech_stack}\n"
+        f"Team: {', '.join(team)}"
+    )
+
+    historical_context = HistoricalContext(
+        previous_decisions=approved_decisions,
+        current_assignments=current_assignments,
+        existing_tasks=[],  # full task list already in current_assignments
+        project_state=project_state,
+        project_requirements=project_requirements,
+    )
+
+    logger.info(
+        "Memory Agent: %d approved decisions, %d active tasks, %d state keys",
+        len(approved_decisions), len(current_assignments), len(project_state),
+    )
+    return {"historical_context": historical_context}
