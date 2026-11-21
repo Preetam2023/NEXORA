@@ -4,7 +4,8 @@ import { useState } from 'react'
 import {
   getProject, getMeetings, getDecisions, getMembers, getTasks,
   getRisks, getProjectState, getConflicts, createMeeting, createTask,
-  addMember, updateTask, triggerAnalysis,
+  addMember, updateTask, triggerAnalysis, streamMeetingAnalysis,
+  approveDecision, rejectDecision, approveTask, rejectTask,
 } from '@/api/client'
 import { cn, formatDate, formatDateTime, statusColor, severityColor, healthDot, initials, avatarBg } from '@/lib/utils'
 import {
@@ -12,7 +13,7 @@ import {
   ListChecks, Brain, Plus, Calendar, Shield, Pencil, X, Check,
   TrendingUp, Activity, Flame,
 } from 'lucide-react'
-import type { Task, Member, Project, Meeting } from '@/types/api'
+import type { Task, Member, Project, Meeting, Decision, Conflict } from '@/types/api'
 
 type Tab = 'overview' | 'meetings' | 'decisions' | 'tasks' | 'members' | 'insights'
 
@@ -420,6 +421,14 @@ function MeetingsTab({ projectId }: { projectId: string }) {
   const [meetingType, setMeetingType] = useState('general')
   const [loading, setLoading] = useState(false)
   const [analyzingId, setAnalyzingId] = useState<string | null>(null)
+  const [progressMsg, setProgressMsg] = useState('')
+  const [analysisResult, setAnalysisResult] = useState<{
+    meetingId: string
+    decisions: Decision[]
+    tasks: Task[]
+    conflicts: Conflict[]
+    summary: string
+  } | null>(null)
 
   const meetings = [...(data?.data ?? [])].sort((a, b) =>
     new Date(b.meeting_date ?? b.created_at).getTime() - new Date(a.meeting_date ?? a.created_at).getTime()
@@ -434,11 +443,78 @@ function MeetingsTab({ projectId }: { projectId: string }) {
       setTitle(''); setTranscript(''); setShowUpload(false)
       if (transcript.trim()) {
         setAnalyzingId(meeting.id)
+        setProgressMsg('Starting analysis…')
         await triggerAnalysis(meeting.id).catch(() => {})
-        setAnalyzingId(null)
-        await qc.invalidateQueries({ queryKey: ['meetings', projectId] })
+
+        // Stream SSE progress and capture result for approve/reject
+        const cleanup = streamMeetingAnalysis(meeting.id, (e) => {
+          if (e.type === 'progress' && 'message' in e.payload) {
+            setProgressMsg((e.payload as { message: string }).message)
+          }
+          if (e.type === 'result') {
+            const r = e.payload as {
+              decisions?: Decision[]
+              tasks?: Task[]
+              conflicts?: Conflict[]
+              summary?: string
+            }
+            setAnalysisResult({
+              meetingId: meeting.id,
+              decisions: r.decisions ?? [],
+              tasks: r.tasks ?? [],
+              conflicts: r.conflicts ?? [],
+              summary: r.summary ?? '',
+            })
+            setAnalyzingId(null)
+            setProgressMsg('')
+            void qc.invalidateQueries({ queryKey: ['meetings', projectId] })
+            void qc.invalidateQueries({ queryKey: ['conflicts', projectId] })
+            cleanup()
+          }
+          if (e.type === 'error') {
+            setAnalyzingId(null)
+            setProgressMsg('')
+            cleanup()
+          }
+        })
       }
     } finally { setLoading(false) }
+  }
+
+  async function handleApproveDecision(id: string) {
+    await approveDecision(id)
+    setAnalysisResult(prev => prev ? {
+      ...prev,
+      decisions: prev.decisions.map(d => d.id === id ? { ...d, status: 'approved' as const } : d),
+    } : null)
+    void qc.invalidateQueries({ queryKey: ['decisions', projectId] })
+  }
+
+  async function handleRejectDecision(id: string) {
+    await rejectDecision(id)
+    setAnalysisResult(prev => prev ? {
+      ...prev,
+      decisions: prev.decisions.map(d => d.id === id ? { ...d, status: 'rejected' as const } : d),
+    } : null)
+    void qc.invalidateQueries({ queryKey: ['decisions', projectId] })
+  }
+
+  async function handleApproveTask(id: string) {
+    await approveTask(id)
+    setAnalysisResult(prev => prev ? {
+      ...prev,
+      tasks: prev.tasks.map(t => t.id === id ? { ...t, status: 'todo' as const } : t),
+    } : null)
+    void qc.invalidateQueries({ queryKey: ['tasks', projectId] })
+  }
+
+  async function handleRejectTask(id: string) {
+    await rejectTask(id)
+    setAnalysisResult(prev => prev ? {
+      ...prev,
+      tasks: prev.tasks.map(t => t.id === id ? { ...t, status: 'cancelled' as const } : t),
+    } : null)
+    void qc.invalidateQueries({ queryKey: ['tasks', projectId] })
   }
 
   if (isLoading) return <div className="space-y-4">{[...Array(3)].map((_, i) => <div key={i} className="h-28 bg-slate-100 rounded-xl animate-pulse" />)}</div>
@@ -476,6 +552,153 @@ function MeetingsTab({ projectId }: { projectId: string }) {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Analysis in progress */}
+      {analyzingId && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-5 flex items-center gap-3 animate-in">
+          <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+          <p className="text-sm text-blue-700 font-medium">{progressMsg || 'Running AI analysis…'}</p>
+        </div>
+      )}
+
+      {/* Analysis results — approve/reject panel */}
+      {analysisResult && (
+        <div className="bg-white border border-amber-200 rounded-xl p-5 mb-5 shadow-sm animate-in">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Brain size={15} className="text-amber-500" />
+              <p className="font-semibold text-slate-800 text-sm">Analysis Results — Review &amp; Approve</p>
+            </div>
+            <button onClick={() => setAnalysisResult(null)} className="text-slate-400 hover:text-slate-600 p-1 rounded">
+              <X size={14} />
+            </button>
+          </div>
+
+          {analysisResult.summary && (
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+              <p className="text-xs font-semibold text-blue-700 mb-1">AI Summary</p>
+              <p className="text-xs text-slate-600 leading-relaxed">{analysisResult.summary}</p>
+            </div>
+          )}
+
+          {/* Conflicts */}
+          {analysisResult.conflicts.filter(c => c.status === 'open').length > 0 && (
+            <div className="mb-4">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                <AlertTriangle size={12} className="text-amber-500" /> Conflicts Detected
+              </p>
+              <div className="space-y-2">
+                {analysisResult.conflicts.filter(c => c.status === 'open').map(c => (
+                  <div key={c.id} className="border border-amber-200 border-l-4 border-l-amber-400 rounded-lg p-3 bg-amber-50/40">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm font-medium text-slate-800">{c.title}</p>
+                      <span className={cn('text-xs px-1.5 py-0.5 rounded font-medium flex-shrink-0', severityColor(c.severity))}>{c.severity}</span>
+                    </div>
+                    {c.ai_explanation && <p className="text-xs text-slate-500 mt-1 leading-relaxed">{c.ai_explanation}</p>}
+                    <p className="text-xs text-amber-600 mt-1.5 font-medium">Go to AI Insights tab to resolve this conflict.</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Decisions */}
+          {analysisResult.decisions.length > 0 && (
+            <div className="mb-4">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Extracted Decisions ({analysisResult.decisions.length})</p>
+              <div className="space-y-2">
+                {analysisResult.decisions.map(d => (
+                  <div key={d.id} className={cn(
+                    'border rounded-lg p-3',
+                    d.status === 'approved' ? 'border-emerald-200 border-l-4 border-l-emerald-400 bg-emerald-50/30' :
+                    d.status === 'rejected' ? 'border-slate-200 bg-slate-50 opacity-60' :
+                    'border-amber-200 border-l-4 border-l-amber-400 border-dashed bg-white',
+                  )}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-slate-800">{d.title}</p>
+                        {d.description && <p className="text-xs text-slate-500 mt-0.5">{d.description}</p>}
+                      </div>
+                      {d.status === 'proposed' && d.id ? (
+                        <div className="flex gap-1.5 flex-shrink-0">
+                          <button
+                            onClick={() => handleApproveDecision(d.id!)}
+                            className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 p-1 rounded transition-colors"
+                            title="Approve"
+                          >
+                            <CheckCircle2 size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleRejectDecision(d.id!)}
+                            className="text-red-500 hover:text-red-600 hover:bg-red-50 p-1 rounded transition-colors"
+                            title="Reject"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      ) : (
+                        <span className={cn('text-xs px-2 py-0.5 rounded font-medium',
+                          d.status === 'approved' ? 'text-emerald-700 bg-emerald-100' : 'text-slate-500 bg-slate-100'
+                        )}>{d.status}</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Tasks */}
+          {analysisResult.tasks.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Extracted Tasks ({analysisResult.tasks.length})</p>
+              <div className="space-y-2">
+                {analysisResult.tasks.map(t => (
+                  <div key={t.id} className={cn(
+                    'border rounded-lg p-3',
+                    t.status === 'todo' ? 'border-emerald-200 border-l-4 border-l-emerald-400 bg-emerald-50/30' :
+                    t.status === 'cancelled' ? 'border-slate-200 bg-slate-50 opacity-60' :
+                    'border-amber-200 border-l-4 border-l-amber-400 border-dashed bg-white',
+                  )}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-slate-800">{t.title}</p>
+                        <div className="flex gap-3 mt-0.5 text-xs text-slate-500">
+                          {t.assigned_to_name && <span>→ {t.assigned_to_name}</span>}
+                          {t.due_date && <span>Due {t.due_date}</span>}
+                          {t.priority && <span className="capitalize">{t.priority}</span>}
+                        </div>
+                      </div>
+                      {t.status === 'proposed' && t.id ? (
+                        <div className="flex gap-1.5 flex-shrink-0">
+                          <button
+                            onClick={() => handleApproveTask(t.id!)}
+                            className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 p-1 rounded transition-colors"
+                            title="Approve"
+                          >
+                            <CheckCircle2 size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleRejectTask(t.id!)}
+                            className="text-red-500 hover:text-red-600 hover:bg-red-50 p-1 rounded transition-colors"
+                            title="Reject"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      ) : (
+                        <span className={cn('text-xs px-2 py-0.5 rounded font-medium',
+                          t.status === 'todo' ? 'text-emerald-700 bg-emerald-100' : 'text-slate-500 bg-slate-100'
+                        )}>{t.status === 'todo' ? 'approved' : t.status}</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

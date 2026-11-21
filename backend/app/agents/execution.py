@@ -158,7 +158,10 @@ async def apply_conflict_resolution(
 ) -> None:
     """Called from the conflict resolve API endpoint (not a LangGraph node).
 
-    Updates the conflict status and logs the resolution.
+    Resolves a conflict and updates linked decisions:
+    - Decisions from the conflicting (old) meeting → "superseded"
+    - Decisions from the new meeting (the one that introduced the conflict) → "approved"
+    Also writes the resolved state to ProjectState if the conflict has new_state data.
     """
     result = await db.execute(select(Conflict).where(Conflict.id == conflict_id))
     conflict = result.scalar_one_or_none()
@@ -169,6 +172,51 @@ async def apply_conflict_resolution(
     conflict.status = "resolved"
     conflict.resolved_at = datetime.now(timezone.utc)
 
+    # Approve decisions from the meeting that introduced the conflict (new_state wins)
+    # and supersede older proposed decisions in the same category for this project.
+    if conflict.meeting_id:
+        # Approve all proposed decisions from the winning (new) meeting
+        new_dec_result = await db.execute(
+            select(Decision).where(
+                Decision.project_id == conflict.project_id,
+                Decision.meeting_id == conflict.meeting_id,
+                Decision.status == "proposed",
+            )
+        )
+        for d in new_dec_result.scalars().all():
+            d.status = "approved"
+
+        # Supersede older proposed decisions in the same category (from prior meetings)
+        if conflict.category:
+            old_dec_result = await db.execute(
+                select(Decision).where(
+                    Decision.project_id == conflict.project_id,
+                    Decision.category == conflict.category,
+                    Decision.status == "proposed",
+                    Decision.meeting_id != conflict.meeting_id,
+                )
+            )
+            for d in old_dec_result.scalars().all():
+                d.status = "superseded"
+
+    # Write resolved new_state to ProjectState so Copilot sees the latest truth
+    if conflict.new_state and conflict.category:
+        result2 = await db.execute(
+            select(ProjectState).where(
+                ProjectState.project_id == conflict.project_id,
+                ProjectState.state_key == conflict.category,
+            )
+        )
+        existing = result2.scalar_one_or_none()
+        if existing:
+            existing.state_value = conflict.new_state
+        else:
+            db.add(ProjectState(
+                project_id=conflict.project_id,
+                state_key=conflict.category,
+                state_value=conflict.new_state,
+            ))
+
     db.add(ActivityLog(
         project_id=conflict.project_id,
         action="conflict_resolved",
@@ -177,6 +225,7 @@ async def apply_conflict_resolution(
             "conflict_id": conflict_id,
             "resolution": resolution,
             "approved_by": approved_by,
+            "new_state": conflict.new_state,
         },
     ))
     await db.commit()

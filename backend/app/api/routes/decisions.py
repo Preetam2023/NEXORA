@@ -1,15 +1,20 @@
-"""Decisions read routes — owned by Saikat (BE-CRUD-5)."""
+"""Decisions read + approve/reject routes."""
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.models.models import Decision
+from app.models.models import ActivityLog, Decision
 from app.schemas.schemas import DecisionResponse, ListResponse, EvidenceItem
 
 router = APIRouter(prefix="/api", tags=["decisions"])
+
+
+class DecisionStatusUpdate(BaseModel):
+    status: str  # "approved" | "rejected"
 
 
 def _decision_to_response(d: Decision) -> dict:
@@ -58,4 +63,29 @@ async def get_decision(decision_id: str, db: AsyncSession = Depends(get_db)):
     decision = await db.get(Decision, decision_id)
     if not decision:
         raise HTTPException(status_code=404, detail="Decision not found")
+    return _decision_to_response(decision)
+
+
+@router.patch("/decisions/{decision_id}")
+async def update_decision_status(
+    decision_id: str,
+    body: DecisionStatusUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    """Approve or reject a proposed decision."""
+    decision = await db.get(Decision, decision_id)
+    if not decision:
+        raise HTTPException(status_code=404, detail="Decision not found")
+
+    if body.status not in ("approved", "rejected"):
+        raise HTTPException(status_code=422, detail="status must be 'approved' or 'rejected'")
+
+    decision.status = body.status
+    db.add(ActivityLog(
+        project_id=decision.project_id,
+        action=f"decision_{body.status}",
+        summary=f"Decision {body.status}: {decision.title}",
+        extra_data={"decision_id": decision_id},
+    ))
+    await db.commit()
     return _decision_to_response(decision)

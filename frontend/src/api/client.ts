@@ -88,6 +88,20 @@ export async function getDecisions(projectId: string): Promise<ListResponse<Deci
   return apiFetch<ListResponse<Decision>>(`/api/projects/${projectId}/decisions`)
 }
 
+export async function approveDecision(decisionId: string): Promise<Decision> {
+  return apiFetch<Decision>(`/api/decisions/${decisionId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status: 'approved' }),
+  })
+}
+
+export async function rejectDecision(decisionId: string): Promise<Decision> {
+  return apiFetch<Decision>(`/api/decisions/${decisionId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status: 'rejected' }),
+  })
+}
+
 // ── Conflicts ─────────────────────────────────────────────────────────────────
 
 export async function getConflicts(projectId: string): Promise<ListResponse<Conflict>> {
@@ -114,6 +128,20 @@ export async function createTask(projectId: string, body: CreateTaskRequest): Pr
 
 export async function updateTask(taskId: string, body: UpdateTaskRequest): Promise<Task> {
   return apiFetch<Task>(`/api/tasks/${taskId}`, { method: 'PATCH', body: JSON.stringify(body) })
+}
+
+export async function approveTask(taskId: string): Promise<Task> {
+  return apiFetch<Task>(`/api/tasks/${taskId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status: 'todo' }),
+  })
+}
+
+export async function rejectTask(taskId: string): Promise<Task> {
+  return apiFetch<Task>(`/api/tasks/${taskId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status: 'cancelled' }),
+  })
 }
 
 // ── Project State & Risks ─────────────────────────────────────────────────────
