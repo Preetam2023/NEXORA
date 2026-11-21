@@ -137,7 +137,7 @@ function OverviewTab({ project, projectId }: { project: Project; projectId: stri
   const openConflicts = conflicts.filter(c => c.status === 'open').length
 
   return (
-    <div className="max-w-5xl space-y-6 animate-in">
+    <div className="w-full space-y-6 animate-in">
       {/* Mini stats */}
       <div className="grid grid-cols-4 gap-4">
         <MiniStat label="Meetings" value={meetings.length} sub={`${meetings.filter(m => m.status === 'analyzed').length} analyzed`} icon={<FileText size={14} className="text-blue-500" />} />
@@ -267,7 +267,7 @@ function MeetingsTab({ projectId }: { projectId: string }) {
   if (isLoading) return <div className="space-y-4">{[...Array(3)].map((_, i) => <div key={i} className="h-28 bg-slate-100 rounded-xl animate-pulse" />)}</div>
 
   return (
-    <div className="max-w-3xl animate-in">
+    <div className="w-full animate-in">
       <div className="flex justify-between items-center mb-5">
         <h2 className="font-semibold text-slate-800">Meeting History</h2>
         <button
@@ -379,7 +379,7 @@ function DecisionsTab({ projectId }: { projectId: string }) {
   const decisions = data?.data ?? []
 
   return (
-    <div className="max-w-3xl animate-in">
+    <div className="w-full animate-in">
       <div className="flex items-center justify-between mb-5">
         <h2 className="font-semibold text-slate-800">Decision Log</h2>
         <span className="text-xs text-slate-400 tab-num">{decisions.length} decisions</span>
@@ -526,7 +526,7 @@ function TasksFullTab({ projectId }: { projectId: string }) {
   }
 
   return (
-    <div className="max-w-4xl animate-in">
+    <div className="w-full animate-in">
       <div className="flex items-center justify-between mb-5">
         <h2 className="font-bold text-slate-900 text-base" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Tasks ({tasks.length})</h2>
         <button
@@ -737,7 +737,7 @@ function MembersFullTab({ projectId }: { projectId: string }) {
   const members = data?.data ?? []
 
   return (
-    <div className="max-w-4xl animate-in">
+    <div className="w-full animate-in">
       <div className="flex items-center justify-between mb-5">
         <h2 className="font-semibold text-slate-800">Team ({members.length})</h2>
         <button onClick={() => setShowNew(v => !v)} className="flex items-center gap-2 bg-[#0F172A] hover:bg-slate-800 text-white text-xs px-3 py-2 rounded-lg transition-colors font-medium">
@@ -803,7 +803,7 @@ function InsightsTab({ projectId }: { projectId: string }) {
   const overdueTasks = tasks.filter(t => t.due_date && new Date(t.due_date) < new Date() && !(['completed', 'cancelled'] as Task['status'][]).includes(t.status))
 
   return (
-    <div className="max-w-4xl animate-in space-y-5">
+    <div className="w-full animate-in space-y-5">
       <div>
         <h2 className="font-semibold text-slate-800 mb-1">AI Insights</h2>
         <p className="text-slate-500 text-xs">Automated analysis of project health, risks, and recommendations</p>

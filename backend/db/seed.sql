@@ -379,4 +379,139 @@ INSERT INTO activity_logs (project_id, meeting_id, actor_name, action, entity_ty
     ('aaaaaaaa-0000-0000-0000-000000000001', 'cccccccc-0000-0000-0000-000000000002', 'Rahul Sharma', 'meeting_analyzed', 'meeting', 'Technical Review analyzed — 2 conflicts detected: DB tech change, ownership change'),
     ('aaaaaaaa-0000-0000-0000-000000000001', 'cccccccc-0000-0000-0000-000000000003', 'Rahul Sharma', 'meeting_analyzed', 'meeting', 'Sprint Review analyzed — PostgreSQL formally approved, conflicts resolved'),
     ('aaaaaaaa-0000-0000-0000-000000000001', NULL, 'Rahul Sharma', 'conflict_resolved', 'conflict', 'Database technology conflict resolved — PostgreSQL approved'),
-    ('aaaaaaaa-0000-0000-0000-000000000001', NULL, 'Rahul Sharma', 'conflict_resolved', 'conflict', 'Ownership conflict resolved — Sanchita confirmed as DB lead');
+    ('aaaaaaaa-0000-0000-0000-000000000001', NULL, 'Rahul Sharma', 'conflict_resolved', 'conflict', 'Ownership conflict resolved — Sanchita confirmed as DB lead'),
+    ('aaaaaaaa-0000-0000-0000-000000000001', 'cccccccc-0000-0000-0000-000000000004', 'Rahul Sharma', 'meeting_analyzed', 'meeting', 'Thursday check-in analyzed — API progress 60%, QA risk flagged'),
+    ('aaaaaaaa-0000-0000-0000-000000000001', 'cccccccc-0000-0000-0000-000000000005', 'Rahul Sharma', 'meeting_analyzed', 'meeting', 'Week 2 kickoff analyzed — API complete, testing phase begins');
+
+-- ─────────────────────────────────────────────
+-- UPDATE: Add AI summaries to existing analyzed meetings
+-- ─────────────────────────────────────────────
+UPDATE meetings SET summary = 'Team aligned on project scope and technology choices for backend modernization. MongoDB selected as primary database. Arjun Verma assigned as database implementation lead with Friday deadline. Priya Nair owns API integration layer. All six team members confirmed roles. Sprint goals defined: database schema by Wednesday, core API endpoints by Friday. No conflicts detected.' WHERE id = 'cccccccc-0000-0000-0000-000000000001';
+
+UPDATE meetings SET summary = 'Technical architecture review raised a critical concern: MongoDB lacks transaction support needed for the new relational data model. Sanchita Rao proposed switching to PostgreSQL and volunteered to lead the migration. Team agreed after discussion. NEXORA detected 2 conflicts: (1) MongoDB → PostgreSQL technology change contradicts Monday''s decision, (2) database ownership transferred from Arjun to Sanchita. API deadline extended to Monday due to database switch.' WHERE id = 'cccccccc-0000-0000-0000-000000000002';
+
+UPDATE meetings SET summary = 'End-of-week retrospective formally approved all changes from Wednesday. PostgreSQL confirmed as production database — supersedes MongoDB decision. Sanchita Rao confirmed as sole database implementation owner. Arjun pivoting to support API layer. Priya''s API endpoints 60% complete, Monday deadline confirmed. QA starting Tuesday once API is live. Aman''s frontend dashboard ready for integration. Two risks flagged: API ORM complexity may cause weekend delays, test coverage not yet started.' WHERE id = 'cccccccc-0000-0000-0000-000000000003';
+
+-- ─────────────────────────────────────────────
+-- Meeting 4 — Thursday Team Check-in
+-- ─────────────────────────────────────────────
+INSERT INTO meetings (id, project_id, title, meeting_type, meeting_date, duration_mins, status, participants, transcript, summary) VALUES
+(
+    'cccccccc-0000-0000-0000-000000000004',
+    'aaaaaaaa-0000-0000-0000-000000000001',
+    'Thursday Team Check-in',
+    'standup',
+    '2024-11-21 10:00:00+00',
+    25,
+    'analyzed',
+    '["Rahul Sharma", "Arjun Verma", "Sanchita Rao", "Priya Nair", "Neha Joshi"]',
+    'Rahul: Quick status check everyone. Sanchita, how is the PostgreSQL migration going?
+
+Sanchita: Schema is done. All tables created with proper foreign keys and indexes. I ran performance tests this morning and query times are well within target. The database layer is solid.
+
+Rahul: Excellent. Priya, API progress?
+
+Priya: I hit a snag with the ORM layer yesterday. The relationship mappings are more complex than I initially estimated. I''m at about 60% — the core CRUD endpoints are working but the complex query endpoints with joins are taking longer. I''m confident for Monday but it''s going to be a busy weekend.
+
+Rahul: What specifically is blocking?
+
+Priya: The many-to-many relationships in the user-project model. Arjun is helping me work through them this afternoon.
+
+Arjun: Yes, we have a plan. Should be unblocked by end of day.
+
+Rahul: Good. Neha, any concerns from QA side?
+
+Neha: I''ve been writing test cases against the spec but I can''t run them until the API is live. I''m flagging a risk — if Priya slips to Tuesday, my full test coverage target of Wednesday becomes very tight. We may need to scope down for the demo.
+
+Rahul: Noted. Let''s keep Monday as hard deadline for core endpoints. Neha, prioritize the critical path test cases. Aman?
+
+Aman: Frontend is ready. I''ve been polishing the UI and writing integration tests against the mock API. Ready to wire up the real endpoints as soon as Priya ships.',
+    'Mid-sprint check-in confirmed PostgreSQL schema is complete and stable. API implementation is 60% done with ORM complexity causing delays — Arjun assisting Priya to unblock by end of day. QA flagged risk: if API slips past Monday, Wednesday test coverage target becomes tight. Monday deadline held as firm. Frontend dashboard complete and ready for API integration. No new conflicts detected.'
+)
+ON CONFLICT DO NOTHING;
+
+-- ─────────────────────────────────────────────
+-- Meeting 5 — Week 2 Kickoff
+-- ─────────────────────────────────────────────
+INSERT INTO meetings (id, project_id, title, meeting_type, meeting_date, duration_mins, status, participants, transcript, summary) VALUES
+(
+    'cccccccc-0000-0000-0000-000000000005',
+    'aaaaaaaa-0000-0000-0000-000000000001',
+    'Week 2 Kickoff — API Integration Complete',
+    'sprint_planning',
+    '2024-11-25 09:30:00+00',
+    40,
+    'analyzed',
+    '["Rahul Sharma", "Arjun Verma", "Sanchita Rao", "Priya Nair", "Neha Joshi", "Aman Singh"]',
+    'Rahul: Great news everyone — Priya delivered the core API endpoints last night. Let''s review what''s working and plan the testing sprint.
+
+Priya: All 12 core endpoints are live on staging. Auth, projects, tasks, users — all working. The complex query endpoints took until 11pm but they''re solid. Full test suite is running against them right now.
+
+Neha: I ran smoke tests this morning. 8 out of 12 endpoints passing. The 4 that are failing are edge cases in the pagination logic. Priya and I will fix those today.
+
+Rahul: Good start. What''s the full test coverage timeline?
+
+Neha: Core test cases by Wednesday, full regression suite by Thursday. We should be demo-ready Thursday evening.
+
+Aman: I''ve already wired up the dashboard and task views to the real API. Data is flowing. The UI looks great with real data. I''ll finish the remaining views today.
+
+Sanchita: Database performance is holding up well under the integration tests. No issues so far. I''ve added two more indexes based on the query patterns Priya''s using.
+
+Rahul: So our risks from last week — API delay and test coverage. API is resolved. Testing is on track for Thursday. What are remaining risks?
+
+Neha: Pagination edge cases. If those take longer than expected, we push the Thursday deadline.
+
+Priya: Also the deployment pipeline. We haven''t done a full production deploy yet. That could surface issues.
+
+Rahul: Let''s target a dry-run deploy on Wednesday. That gives us Thursday to fix anything. Aman, can you have the full frontend ready for the deploy?
+
+Aman: Definitely. I''ll have everything done by Tuesday evening.',
+    'Week 2 kickoff confirmed API integration complete ahead of schedule. All 12 core endpoints live on staging, 8 passing smoke tests. Priya and Neha unblocking 4 pagination edge cases today. Aman has wired frontend to real API — data flowing. Full test coverage target: Thursday. Production deploy dry-run: Wednesday. Database performance nominal. Project moved from at-risk to on-track. Demo prep on schedule.'
+)
+ON CONFLICT DO NOTHING;
+
+-- ─────────────────────────────────────────────
+-- Tasks from Meeting 4 & 5
+-- ─────────────────────────────────────────────
+INSERT INTO tasks (id, project_id, meeting_id, title, assigned_to_name, priority, status, due_date) VALUES
+(
+    'eeeeeeee-0000-0000-0000-000000000005',
+    'aaaaaaaa-0000-0000-0000-000000000001',
+    'cccccccc-0000-0000-0000-000000000004',
+    'Fix ORM relationship mappings for many-to-many',
+    'Arjun Verma',
+    'high',
+    'completed',
+    '2024-11-21'
+),
+(
+    'eeeeeeee-0000-0000-0000-000000000006',
+    'aaaaaaaa-0000-0000-0000-000000000001',
+    'cccccccc-0000-0000-0000-000000000005',
+    'Fix pagination edge cases in API endpoints',
+    'Priya Nair',
+    'high',
+    'in_progress',
+    '2024-11-25'
+),
+(
+    'eeeeeeee-0000-0000-0000-000000000007',
+    'aaaaaaaa-0000-0000-0000-000000000001',
+    'cccccccc-0000-0000-0000-000000000005',
+    'Production deploy dry-run',
+    'Rahul Sharma',
+    'critical',
+    'todo',
+    '2024-11-27'
+),
+(
+    'eeeeeeee-0000-0000-0000-000000000008',
+    'aaaaaaaa-0000-0000-0000-000000000001',
+    'cccccccc-0000-0000-0000-000000000005',
+    'Full regression test suite',
+    'Neha Joshi',
+    'high',
+    'in_progress',
+    '2024-11-28'
+)
+ON CONFLICT DO NOTHING;

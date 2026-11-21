@@ -103,7 +103,7 @@ export default function IntelligenceCenter() {
   }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto animate-in">
+    <div className="p-6 animate-in">
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
@@ -311,12 +311,12 @@ export default function IntelligenceCenter() {
                                 </div>
                                 <p className="text-xs text-slate-500 leading-relaxed ml-6">{opt.rationale}</p>
                                 {(opt.pros.length > 0 || opt.cons.length > 0) && (
-                                  <div className="mt-2.5 ml-6 grid grid-cols-2 gap-3 text-xs">
+                                  <div className="mt-2.5 ml-6 space-y-2 text-xs">
                                     {opt.pros.length > 0 && (
                                       <div>
                                         <p className="font-semibold text-emerald-600 mb-1">Pros</p>
                                         <ul className="space-y-0.5">
-                                          {opt.pros.slice(0, 2).map((p, i) => (
+                                          {opt.pros.slice(0, 3).map((p, i) => (
                                             <li key={i} className="text-slate-500 flex gap-1.5"><span className="text-emerald-400">+</span>{p}</li>
                                           ))}
                                         </ul>
@@ -326,7 +326,7 @@ export default function IntelligenceCenter() {
                                       <div>
                                         <p className="font-semibold text-red-500 mb-1">Cons</p>
                                         <ul className="space-y-0.5">
-                                          {opt.cons.slice(0, 2).map((c, i) => (
+                                          {opt.cons.slice(0, 3).map((c, i) => (
                                             <li key={i} className="text-slate-500 flex gap-1.5"><span className="text-red-400">−</span>{c}</li>
                                           ))}
                                         </ul>
