@@ -91,6 +91,9 @@ class WorkflowState(BaseModel):
     # Filled by Conflict Analyst node
     conflicts: list[ConflictRecord] = []
 
+    # Pre-populated by orchestrator — existing conflict titles so analyst doesn't re-raise them
+    existing_conflict_titles: list[str] = []
+
     # Filled by Impact Analysis node
     impact_reports: list[dict[str, Any]] = []
 

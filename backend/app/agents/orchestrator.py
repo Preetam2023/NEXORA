@@ -95,6 +95,16 @@ async def run_workflow(meeting_id: str, db: AsyncSession) -> WorkflowState:
     )
 
     # ── 3. Conflict Analyst (LLM — needs both results) ────────────────────────
+    # Pre-fetch existing conflict titles so analyst doesn't re-raise already-known conflicts
+    from app.models.models import Conflict as ConflictModel
+    from sqlalchemy import select as sa_select
+    existing_res = await db.execute(
+        sa_select(ConflictModel.title, ConflictModel.status)
+        .where(ConflictModel.project_id == state.project_id)
+    )
+    existing_titles = [f"[{r.status}] {r.title}" for r in existing_res.all()]
+    state = state.model_copy(update={"existing_conflict_titles": existing_titles})
+
     conflict_result = await asyncio.get_event_loop().run_in_executor(
         None, run_conflict_analyst, state
     )

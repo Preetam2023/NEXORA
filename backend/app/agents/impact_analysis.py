@@ -49,7 +49,7 @@ async def run_impact_analysis(state: WorkflowState, db: AsyncSession) -> dict:
         .join(User, ProjectMember.user_id == User.id)
         .where(ProjectMember.project_id == pid)
     )
-    members = {r.user_name: r.ProjectMember.project_role for r in result.all()}
+    members = {r.user_name: r.ProjectMember.role for r in result.all()}
 
     impact_reports = []
     for conflict in state.conflicts:
