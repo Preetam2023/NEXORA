@@ -13,6 +13,51 @@ interface Message {
   streaming?: boolean
 }
 
+function MarkdownMessage({ text }: { text: string }) {
+  const lines = text.split('\n')
+  const elements: React.ReactNode[] = []
+
+  const renderInline = (line: string, key: string) => {
+    // Split on **bold** patterns
+    const parts = line.split(/(\*\*[^*]+\*\*)/)
+    return (
+      <span key={key}>
+        {parts.map((p, i) =>
+          p.startsWith('**') && p.endsWith('**')
+            ? <strong key={i} className="font-semibold">{p.slice(2, -2)}</strong>
+            : <span key={i}>{p}</span>
+        )}
+      </span>
+    )
+  }
+
+  let i = 0
+  while (i < lines.length) {
+    const line = lines[i]
+    if (line.startsWith('### ')) {
+      elements.push(<p key={i} className="font-bold text-slate-800 mt-2 mb-0.5">{line.slice(4)}</p>)
+    } else if (line.startsWith('## ')) {
+      elements.push(<p key={i} className="font-bold text-slate-800 mt-2.5 mb-1">{line.slice(3)}</p>)
+    } else if (line.startsWith('# ')) {
+      elements.push(<p key={i} className="font-bold text-slate-900 mt-2.5 mb-1">{line.slice(2)}</p>)
+    } else if (line.startsWith('- ') || line.startsWith('* ')) {
+      elements.push(
+        <div key={i} className="flex gap-1.5 my-0.5">
+          <span className="text-slate-400 mt-0.5 flex-shrink-0">•</span>
+          <span>{renderInline(line.slice(2), `li-${i}`)}</span>
+        </div>
+      )
+    } else if (line.trim() === '') {
+      elements.push(<div key={i} className="h-2" />)
+    } else {
+      elements.push(<p key={i} className="my-0.5 leading-relaxed">{renderInline(line, `p-${i}`)}</p>)
+    }
+    i++
+  }
+
+  return <div className="text-sm">{elements}</div>
+}
+
 const SUGGESTED = [
   'What is the current project status?',
   'Who owns which tasks right now?',
@@ -158,7 +203,9 @@ export default function CopilotPanel({ projectId, onClose }: Props) {
                       <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '300ms' }} />
                     </div>
                   ) : (
-                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                    msg.role === 'assistant'
+                      ? <MarkdownMessage text={msg.content} />
+                      : <p className="text-sm leading-relaxed">{msg.content}</p>
                   )}
                   {msg.role === 'assistant' && msg.sources.length > 0 && (
                     <div className="mt-2 pt-2 border-t border-slate-200/80 space-y-1">
