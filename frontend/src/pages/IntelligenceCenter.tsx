@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { getConflicts, resolveConflict, rejectConflict } from '@/api/client'
 import type { Conflict } from '@/types/api'
 import { cn, formatDate, formatDateTime, severityColor } from '@/lib/utils'
-import { AlertTriangle, CheckCircle2, XCircle, ArrowLeft, Shield, TrendingUp, Zap } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, XCircle, ArrowLeft, Shield, Zap } from 'lucide-react'
 
 type Filter = 'open' | 'all'
 
@@ -270,68 +270,74 @@ export default function IntelligenceCenter() {
                       </div>
                     )}
 
-                    {/* Recommendation cards */}
+                    {/* Recommendation cards — 3 per row, score meter, vertical pros/cons */}
                     {isOpen && opts.length > 0 && (
                       <div>
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                           <Zap size={11} />
                           AI Recommendations — select one to approve
                         </p>
-                        <div className="grid grid-cols-1 gap-3">
+                        <div className="grid grid-cols-3 gap-3">
                           {opts.map(opt => {
                             const isSelected = selectedOptId === opt.id
+                            const scoreColor = opt.score >= 70 ? '#10B981' : opt.score >= 50 ? '#F59E0B' : '#EF4444'
+                            const scoreBg = opt.score >= 70 ? 'bg-emerald-500' : opt.score >= 50 ? 'bg-amber-400' : 'bg-red-400'
                             return (
                               <button
                                 key={opt.id}
                                 onClick={() => setSelectedOptions(prev => ({ ...prev, [conflict.id]: opt.id }))}
                                 className={cn(
-                                  'text-left w-full border-2 rounded-xl p-4 transition-all',
+                                  'text-left w-full border-2 rounded-xl p-4 transition-all flex flex-col',
                                   isSelected ? `${opt.borderColor} ${opt.bgColor} ring-2 ring-blue-500/20` : 'border-slate-200 bg-white hover:border-slate-300',
                                 )}
                               >
-                                <div className="flex items-start justify-between gap-3 mb-2">
-                                  <div className="flex items-center gap-2">
-                                    <div className={cn('w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0',
-                                      isSelected ? 'border-blue-600 bg-blue-600' : 'border-slate-300')}>
-                                      {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                                    </div>
-                                    <p className="font-bold text-slate-900 text-sm leading-snug">{opt.label}</p>
+                                {/* Header: radio + tag */}
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className={cn('w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center flex-shrink-0',
+                                    isSelected ? 'border-blue-600 bg-blue-600' : 'border-slate-300')}>
+                                    {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                                   </div>
-                                  <div className="flex items-center gap-2 flex-shrink-0">
-                                    <span className={cn('text-xs px-2 py-0.5 rounded-md font-semibold', opt.tagColor)}>{opt.tag}</span>
-                                    <div className="flex items-center gap-1">
-                                      <TrendingUp size={11} className={opt.score >= 70 ? 'text-emerald-500' : opt.score >= 50 ? 'text-amber-500' : 'text-slate-400'} />
-                                      <span className={cn('text-sm font-bold tab-num',
-                                        opt.score >= 70 ? 'text-emerald-600' : opt.score >= 50 ? 'text-amber-600' : 'text-slate-500')}>
-                                        {opt.score}
-                                      </span>
-                                      <span className="text-xs text-slate-400">/ 100</span>
-                                    </div>
+                                  <span className={cn('text-xs px-1.5 py-0.5 rounded font-semibold', opt.tagColor)}>{opt.tag}</span>
+                                </div>
+
+                                {/* Title */}
+                                <p className="font-bold text-slate-900 text-xs leading-snug mb-1.5">{opt.label}</p>
+
+                                {/* AI Score meter */}
+                                <div className="mb-2">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="text-xs text-slate-400">AI Score</span>
+                                    <span className="text-xs font-bold tab-num" style={{ color: scoreColor }}>{opt.score}/100</span>
+                                  </div>
+                                  <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                    <div className={cn('h-full rounded-full transition-all duration-500', scoreBg)} style={{ width: `${opt.score}%` }} />
                                   </div>
                                 </div>
-                                <p className="text-xs text-slate-500 leading-relaxed ml-6">{opt.rationale}</p>
-                                {(opt.pros.length > 0 || opt.cons.length > 0) && (
-                                  <div className="mt-2.5 ml-6 space-y-2 text-xs">
-                                    {opt.pros.length > 0 && (
-                                      <div>
-                                        <p className="font-semibold text-emerald-600 mb-1">Pros</p>
-                                        <ul className="space-y-0.5">
-                                          {opt.pros.slice(0, 3).map((p, i) => (
-                                            <li key={i} className="text-slate-500 flex gap-1.5"><span className="text-emerald-400">+</span>{p}</li>
-                                          ))}
-                                        </ul>
-                                      </div>
-                                    )}
-                                    {opt.cons.length > 0 && (
-                                      <div>
-                                        <p className="font-semibold text-red-500 mb-1">Cons</p>
-                                        <ul className="space-y-0.5">
-                                          {opt.cons.slice(0, 3).map((c, i) => (
-                                            <li key={i} className="text-slate-500 flex gap-1.5"><span className="text-red-400">−</span>{c}</li>
-                                          ))}
-                                        </ul>
-                                      </div>
-                                    )}
+
+                                {/* Rationale */}
+                                <p className="text-xs text-slate-500 leading-relaxed mb-2.5">{opt.rationale}</p>
+
+                                {/* Pros */}
+                                {opt.pros.length > 0 && (
+                                  <div className="mb-2">
+                                    <p className="text-xs font-semibold text-emerald-600 mb-1">Pros</p>
+                                    <ul className="space-y-0.5">
+                                      {opt.pros.slice(0, 3).map((p, i) => (
+                                        <li key={i} className="text-xs text-slate-500 flex gap-1.5"><span className="text-emerald-400 flex-shrink-0">+</span>{p}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+
+                                {/* Cons */}
+                                {opt.cons.length > 0 && (
+                                  <div>
+                                    <p className="text-xs font-semibold text-red-500 mb-1">Cons</p>
+                                    <ul className="space-y-0.5">
+                                      {opt.cons.slice(0, 3).map((c, i) => (
+                                        <li key={i} className="text-xs text-slate-500 flex gap-1.5"><span className="text-red-400 flex-shrink-0">−</span>{c}</li>
+                                      ))}
+                                    </ul>
                                   </div>
                                 )}
                               </button>

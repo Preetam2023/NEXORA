@@ -10,6 +10,7 @@ import { cn, formatDate, formatDateTime, statusColor, severityColor, healthDot, 
 import {
   AlertTriangle, CheckCircle2, Clock, Users, Zap, FileText,
   ListChecks, Brain, Plus, Calendar, Shield, Pencil, X, Check,
+  TrendingUp, Activity, Flame,
 } from 'lucide-react'
 import type { Task, Member, Project, Meeting } from '@/types/api'
 
@@ -118,6 +119,26 @@ export default function ProjectWorkspace({ onOpenCopilot }: Props) {
 
 // ── Overview Tab ──────────────────────────────────────────────────────────────
 
+function buildAISummary(project: Project, meetings: Meeting[], tasks: ReturnType<typeof Array.prototype.filter>, conflicts: ReturnType<typeof Array.prototype.filter>, state: Array<{ state_key: string; state_value: string }>) {
+  const analyzed = meetings.filter((m: Meeting) => m.status === 'analyzed').length
+  const done = tasks.filter((t: { status: string }) => t.status === 'completed').length
+  const inProgress = tasks.filter((t: { status: string }) => t.status === 'in_progress').length
+  const openConflicts = conflicts.filter((c: { status: string }) => c.status === 'open').length
+  const dbState = state.find(s => s.state_key === 'database_technology')
+  const dbOwner = state.find(s => s.state_key === 'database_implementation_owner')
+  const apiDeadline = state.find(s => s.state_key === 'api_deadline')
+
+  const parts: string[] = []
+  parts.push(`${project.name} is ${project.health === 'healthy' ? 'on track' : project.health === 'at_risk' ? 'at risk and needs attention' : 'in a critical state'} at ${project.completion_percentage}% completion.`)
+  if (analyzed > 0) parts.push(`${analyzed} meeting${analyzed > 1 ? 's' : ''} analyzed across this sprint.`)
+  if (inProgress > 0) parts.push(`${inProgress} task${inProgress > 1 ? 's' : ''} in progress, ${done} completed.`)
+  if (dbState) parts.push(`Current database: ${dbState.state_value}${dbOwner ? `, owned by ${dbOwner.state_value}` : ''}.`)
+  if (apiDeadline) parts.push(`API deadline: ${apiDeadline.state_value}.`)
+  if (openConflicts > 0) parts.push(`⚠ ${openConflicts} open conflict${openConflicts > 1 ? 's' : ''} require resolution in Decision Center.`)
+  else parts.push('No open conflicts — all decisions are aligned.')
+  return parts.join(' ')
+}
+
 function OverviewTab({ project, projectId }: { project: Project; projectId: string }) {
   const { data: tasksData } = useQuery({ queryKey: ['tasks', projectId], queryFn: () => getTasks(projectId) })
   const { data: meetingsData } = useQuery({ queryKey: ['meetings', projectId], queryFn: () => getMeetings(projectId) })
@@ -134,53 +155,145 @@ function OverviewTab({ project, projectId }: { project: Project; projectId: stri
   const inProgress = tasks.filter(t => t.status === 'in_progress').length
   const todo = tasks.filter(t => t.status === 'todo' || t.status === 'proposed').length
   const done = tasks.filter(t => t.status === 'completed').length
+  const blocked = tasks.filter(t => t.status === 'blocked').length
+  const analyzed = meetings.filter(m => m.status === 'analyzed').length
   const openConflicts = conflicts.filter(c => c.status === 'open').length
 
+  const aiSummary = meetings.length > 0 || state.length > 0
+    ? buildAISummary(project, meetings, tasks, conflicts, state)
+    : null
+
+  const overdueTasks = tasks.filter(t => t.due_date && new Date(t.due_date) < new Date() && t.status !== 'completed' && t.status !== 'cancelled')
+  const apiDeadline = state.find(s => s.state_key === 'api_deadline')
+
   return (
-    <div className="w-full space-y-6 animate-in">
-      {/* Mini stats */}
+    <div className="w-full space-y-5 animate-in">
+
+      {/* AI Project Summary — glossy hero card */}
+      {aiSummary && (
+        <div className="relative overflow-hidden rounded-2xl border border-blue-100 shadow-lg" style={{ background: 'linear-gradient(135deg, #EFF6FF 0%, #F0FDF4 100%)' }}>
+          <div className="absolute top-0 right-0 w-48 h-48 rounded-full opacity-10" style={{ background: 'radial-gradient(circle, #3B82F6, transparent)', transform: 'translate(30%, -30%)' }} />
+          <div className="relative p-5">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-6 h-6 rounded-lg bg-blue-600 flex items-center justify-center shadow-sm">
+                <Brain size={12} className="text-white" />
+              </div>
+              <span className="text-xs font-bold text-blue-700 uppercase tracking-wider">AI Project Summary</span>
+            </div>
+            <p className="text-sm text-slate-700 leading-relaxed font-medium">{aiSummary}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Animated alerts */}
+      {openConflicts > 0 && (
+        <div className="relative overflow-hidden bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3 shadow-sm">
+          <div className="absolute inset-0 opacity-20" style={{ background: 'linear-gradient(90deg, transparent 0%, #F59E0B20 50%, transparent 100%)', animation: 'shimmer 2s infinite' }} />
+          <div className="relative">
+            <div className="w-8 h-8 rounded-lg bg-amber-100 border border-amber-200 flex items-center justify-center animate-pulse">
+              <AlertTriangle size={14} className="text-amber-600" />
+            </div>
+          </div>
+          <div className="relative flex-1">
+            <p className="text-sm font-bold text-amber-900">{openConflicts} open conflict{openConflicts > 1 ? 's' : ''} need your review</p>
+            <p className="text-xs text-amber-700 mt-0.5">NEXORA detected decision conflicts that require approval before they affect project state.</p>
+          </div>
+          <span className="relative text-xs font-semibold text-amber-600 bg-amber-100 px-2 py-1 rounded-lg border border-amber-200 flex-shrink-0">Action Required</span>
+        </div>
+      )}
+
+      {overdueTasks.length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3 shadow-sm">
+          <div className="w-8 h-8 rounded-lg bg-red-100 border border-red-200 flex items-center justify-center flex-shrink-0">
+            <Flame size={14} className="text-red-500" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-bold text-red-900">{overdueTasks.length} overdue task{overdueTasks.length > 1 ? 's' : ''}</p>
+            <p className="text-xs text-red-600 mt-0.5">{overdueTasks.map(t => t.title).slice(0, 2).join(', ')}{overdueTasks.length > 2 ? ` +${overdueTasks.length - 2} more` : ''}</p>
+          </div>
+        </div>
+      )}
+
+      {apiDeadline && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3 shadow-sm">
+          <div className="w-8 h-8 rounded-lg bg-blue-100 border border-blue-200 flex items-center justify-center flex-shrink-0">
+            <Calendar size={14} className="text-blue-600" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-blue-900">API Deadline: {apiDeadline.state_value}</p>
+            <p className="text-xs text-blue-600 mt-0.5">Priya Nair — core endpoints delivery target</p>
+          </div>
+        </div>
+      )}
+
+      {/* Glossy stat cards */}
       <div className="grid grid-cols-4 gap-4">
-        <MiniStat label="Meetings" value={meetings.length} sub={`${meetings.filter(m => m.status === 'analyzed').length} analyzed`} icon={<FileText size={14} className="text-blue-500" />} />
-        <MiniStat label="Tasks" value={tasks.length} sub={`${inProgress} in progress`} icon={<ListChecks size={14} className="text-amber-500" />} />
-        <MiniStat label="Open Conflicts" value={openConflicts} sub={openConflicts > 0 ? 'needs review' : 'all clear'} icon={<AlertTriangle size={14} className={openConflicts > 0 ? 'text-red-500' : 'text-emerald-500'} />} />
-        <MiniStat label="Members" value={members.length} sub="active" icon={<Users size={14} className="text-purple-500" />} />
+        <GlossyStat
+          label="Meetings" value={meetings.length} sub={`${analyzed} analyzed`}
+          accent="#3B82F6" icon={<FileText size={15} />}
+          pct={meetings.length > 0 ? Math.round((analyzed / meetings.length) * 100) : 0}
+        />
+        <GlossyStat
+          label="Tasks" value={tasks.length} sub={`${inProgress} in progress`}
+          accent="#10B981" icon={<ListChecks size={15} />}
+          pct={tasks.length > 0 ? Math.round((done / tasks.length) * 100) : 0}
+        />
+        <GlossyStat
+          label="Conflicts" value={openConflicts} sub={openConflicts > 0 ? 'needs review' : 'all clear'}
+          accent={openConflicts > 0 ? '#F59E0B' : '#10B981'} icon={<Shield size={15} />}
+          pct={conflicts.length > 0 ? Math.round(((conflicts.length - openConflicts) / conflicts.length) * 100) : 100}
+        />
+        <GlossyStat
+          label="Members" value={members.length} sub="active"
+          accent="#8B5CF6" icon={<Users size={15} />}
+          pct={100}
+        />
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        {/* Task breakdown */}
-        <div className="col-span-2 bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-          <h3 className="font-semibold text-slate-800 text-sm mb-4">Task Breakdown</h3>
+      <div className="grid grid-cols-3 gap-5">
+        {/* Task breakdown — glossy */}
+        <div className="col-span-2 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 rounded-full opacity-5" style={{ background: '#3B82F6', transform: 'translate(40%, -40%)' }} />
+          <div className="flex items-center gap-2 mb-4">
+            <Activity size={14} className="text-slate-500" />
+            <h3 className="font-bold text-slate-800 text-sm">Task Breakdown</h3>
+            <span className="ml-auto text-xs font-bold text-slate-900 tab-num">{project.completion_percentage}%</span>
+          </div>
           <div className="space-y-3">
             {[
-              { label: 'Completed', count: done, total: tasks.length, color: 'bg-emerald-500' },
-              { label: 'In Progress', count: inProgress, total: tasks.length, color: 'bg-blue-500' },
-              { label: 'Todo', count: todo, total: tasks.length, color: 'bg-amber-400' },
-              { label: 'Blocked', count: tasks.filter(t => t.status === 'blocked').length, total: tasks.length, color: 'bg-red-400' },
-            ].map(({ label, count, total, color }) => (
+              { label: 'Completed', count: done, total: tasks.length, color: 'bg-emerald-500', text: 'text-emerald-600' },
+              { label: 'In Progress', count: inProgress, total: tasks.length, color: 'bg-blue-500', text: 'text-blue-600' },
+              { label: 'Todo', count: todo, total: tasks.length, color: 'bg-amber-400', text: 'text-amber-600' },
+              { label: 'Blocked', count: blocked, total: tasks.length, color: 'bg-red-400', text: 'text-red-500' },
+            ].map(({ label, count, total, color, text }) => (
               <div key={label}>
-                <div className="flex justify-between text-xs text-slate-500 mb-1">
-                  <span>{label}</span>
-                  <span className="tab-num font-medium text-slate-700">{count}</span>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-slate-500 font-medium">{label}</span>
+                  <span className={cn('font-bold tab-num', text)}>{count}</span>
                 </div>
-                <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                  <div className={cn('h-full rounded-full transition-all', color)} style={{ width: total > 0 ? `${(count / total) * 100}%` : '0%' }} />
+                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div className={cn('h-full rounded-full transition-all duration-700', color)} style={{ width: total > 0 ? `${(count / total) * 100}%` : '0%' }} />
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Project state KV */}
-        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-          <h3 className="font-semibold text-slate-800 text-sm mb-4">Current State</h3>
+        {/* Current State — glossy */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm relative overflow-hidden">
+          <div className="absolute bottom-0 left-0 w-24 h-24 rounded-full opacity-5" style={{ background: '#10B981', transform: 'translate(-40%, 40%)' }} />
+          <div className="flex items-center gap-2 mb-4">
+            <TrendingUp size={14} className="text-slate-500" />
+            <h3 className="font-bold text-slate-800 text-sm">Current State</h3>
+          </div>
           {state.length === 0 ? (
             <p className="text-xs text-slate-400">No state recorded yet</p>
           ) : (
             <div className="space-y-3">
-              {state.map(kv => (
-                <div key={kv.id}>
-                  <p className="text-xs text-slate-400 capitalize">{kv.state_key.replace(/_/g, ' ')}</p>
-                  <p className="text-sm font-medium text-slate-800 mt-0.5">{kv.state_value}</p>
+              {state.filter(kv => !kv.state_key.startsWith('previous_')).map(kv => (
+                <div key={kv.id} className="border-b border-slate-50 pb-2 last:border-0 last:pb-0">
+                  <p className="text-xs text-slate-400 capitalize font-medium">{kv.state_key.replace(/_/g, ' ')}</p>
+                  <p className="text-sm font-bold text-slate-800 mt-0.5">{kv.state_value}</p>
                 </div>
               ))}
             </div>
@@ -188,24 +301,13 @@ function OverviewTab({ project, projectId }: { project: Project; projectId: stri
         </div>
       </div>
 
-      {/* Alerts */}
-      {openConflicts > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-          <AlertTriangle size={16} className="text-amber-500 mt-0.5 flex-shrink-0" />
-          <div>
-            <p className="text-sm font-medium text-amber-800">{openConflicts} open conflict{openConflicts > 1 ? 's' : ''} need review</p>
-            <p className="text-xs text-amber-600 mt-0.5">Go to Decision Center to review and resolve</p>
-          </div>
-        </div>
-      )}
-
       {/* Tech stack */}
       {project.technology_stack.length > 0 && (
-        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-          <h3 className="font-semibold text-slate-800 text-sm mb-3">Technology Stack</h3>
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+          <h3 className="font-bold text-slate-800 text-sm mb-3">Technology Stack</h3>
           <div className="flex flex-wrap gap-2">
             {project.technology_stack.map(tech => (
-              <span key={tech} className="text-xs bg-slate-50 text-slate-700 border border-slate-200 px-3 py-1.5 rounded-lg font-medium">{tech}</span>
+              <span key={tech} className="text-xs bg-slate-900 text-white px-3 py-1.5 rounded-lg font-semibold shadow-sm">{tech}</span>
             ))}
           </div>
         </div>
@@ -213,8 +315,8 @@ function OverviewTab({ project, projectId }: { project: Project; projectId: stri
 
       {/* Requirements */}
       {project.requirements && (
-        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-          <h3 className="font-semibold text-slate-800 text-sm mb-3">Requirements</h3>
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+          <h3 className="font-bold text-slate-800 text-sm mb-2">Requirements</h3>
           <p className="text-slate-600 text-sm leading-relaxed">{project.requirements}</p>
         </div>
       )}
@@ -222,12 +324,25 @@ function OverviewTab({ project, projectId }: { project: Project; projectId: stri
   )
 }
 
-function MiniStat({ label, value, sub, icon }: { label: string; value: number; sub: string; icon: React.ReactNode }) {
+function GlossyStat({ label, value, sub, accent, icon, pct }: {
+  label: string; value: number; sub: string; accent: string; icon: React.ReactNode; pct: number
+}) {
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-      <div className="flex items-center gap-2 mb-2">{icon}<span className="text-xs text-slate-500">{label}</span></div>
-      <p className="text-xl font-bold text-slate-900 tab-num">{value}</p>
-      <p className="text-xs text-slate-400 mt-0.5">{sub}</p>
+    <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm relative overflow-hidden">
+      <div className="absolute inset-0 opacity-[0.04] rounded-2xl" style={{ background: `radial-gradient(circle at top right, ${accent}, transparent 70%)` }} />
+      <div className="relative">
+        <div className="flex items-center justify-between mb-3">
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${accent}18`, color: accent }}>
+            {icon}
+          </div>
+          <span className="text-xs font-semibold text-slate-400">{label}</span>
+        </div>
+        <p className="text-2xl font-black text-slate-900 tab-num leading-none mb-0.5">{value}</p>
+        <p className="text-xs text-slate-400 mb-2">{sub}</p>
+        <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
+          <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, backgroundColor: accent }} />
+        </div>
+      </div>
     </div>
   )
 }

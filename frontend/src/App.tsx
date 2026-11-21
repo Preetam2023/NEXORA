@@ -16,7 +16,8 @@ export default function App() {
         <Sidebar
           onOpenCopilot={(pid) => { setCopilotProjectId(pid); setCopilotOpen(true) }}
         />
-        <div className="flex-1 overflow-hidden relative">
+        {/* Main content shrinks when copilot is open */}
+        <div className="flex-1 overflow-hidden min-w-0">
           <main className="h-full overflow-auto">
             <Routes>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -25,20 +26,20 @@ export default function App() {
               <Route path="/projects/:projectId/intelligence" element={<IntelligenceCenter />} />
             </Routes>
           </main>
-          {/* Copilot slides over content from the right — no layout shift */}
-          <div className={`absolute inset-y-0 right-0 w-96 z-20 shadow-2xl transition-transform duration-300 ease-in-out ${copilotOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-            {copilotOpen && (
+        </div>
+        {/* Copilot panel slides in as a sibling — main content shrinks */}
+        <div
+          className={`flex-shrink-0 overflow-hidden transition-all duration-300 ease-in-out border-l border-slate-200 bg-white ${
+            copilotOpen ? 'w-96' : 'w-0'
+          }`}
+        >
+          {copilotOpen && (
+            <div className="w-96 h-full">
               <CopilotPanel
                 projectId={copilotProjectId}
                 onClose={() => setCopilotOpen(false)}
               />
-            )}
-          </div>
-          {copilotOpen && (
-            <div
-              className="absolute inset-0 z-10 bg-black/20 backdrop-blur-[1px]"
-              onClick={() => setCopilotOpen(false)}
-            />
+            </div>
           )}
         </div>
       </div>
