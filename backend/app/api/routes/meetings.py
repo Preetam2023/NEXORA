@@ -83,8 +83,9 @@ async def analyze_meeting(meeting_id: str, db: AsyncSession = Depends(get_db)):
     await db.commit()
 
     workflow_id = str(uuid.uuid4())
-    # Fire-and-forget: run workflow in background so endpoint returns immediately
-    asyncio.create_task(_run_workflow_background(meeting_id, workflow_id))
+    # Keep reference to prevent garbage collection before task completes
+    task = asyncio.create_task(_run_workflow_background(meeting_id, workflow_id))
+    task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
 
     return {"workflow_id": workflow_id, "status": "started"}
 
