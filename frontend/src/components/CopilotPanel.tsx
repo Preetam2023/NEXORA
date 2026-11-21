@@ -101,7 +101,7 @@ export default function CopilotPanel({ projectId, onClose }: Props) {
   }
 
   return (
-    <div className="w-96 flex-shrink-0 bg-white border-l border-slate-200 flex flex-col slide-right">
+    <div className="w-96 h-full flex-shrink-0 bg-white border-l border-slate-200 flex flex-col slide-right">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-gradient-to-r from-[#0F172A] to-slate-800">
         <div className="flex items-center gap-2.5">
