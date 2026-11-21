@@ -12,5 +12,23 @@
     color: #0F172A;
     margin: 0;
     padding: 0;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3 { font-family: 'Plus Jakarta Sans', 'Inter', sans-serif; }
+}
+
+@layer utilities {
+  .tab-num { font-variant-numeric: tabular-nums; }
+  .animate-in { animation: fadeSlideIn 0.18s ease both; }
+  @keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .slide-right {
+    animation: slideRight 0.22s ease both;
+  }
+  @keyframes slideRight {
+    from { opacity: 0; transform: translateX(24px); }
+    to   { opacity: 1; transform: translateX(0); }
   }
 }

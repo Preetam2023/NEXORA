@@ -163,7 +163,6 @@ async def answer(
     sources = [
         {"type": "project_state", "count": len(state_kv)},
         {"type": "decisions", "count": len(decisions)},
-        {"type": "tasks", "count": len(tasks_rows)},
     ]
 
     # Yield conversation_id first so client can track the session
