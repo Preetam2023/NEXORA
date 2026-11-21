@@ -1,62 +1,80 @@
-"""Conflict Analyst Agent — compares new meeting info with historical project state.
-TODO (Preetam — AI-5): implement run_conflict_analyst node.
-One LLM call with historical context injected — detects contradictions, changes, proposals.
+"""Conflict Analyst — detects contradictions between new meeting and project history.
+AI-5 + AI-6: recommendation is generated in the same single LLM call (Option A).
 """
 from __future__ import annotations
 
-from app.agents.state import WorkflowState, ConflictRecord
+import logging
+
+from app.agents.state import (
+    ConflictRecommendation,
+    ConflictRecord,
+    EvidenceItem,
+    WorkflowState,
+)
+
+logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """\
-You are a project conflict analyst. Compare the new meeting information with the
-historical project state and identify REAL conflicts — contradictions, ownership changes,
-technical decision changes, deadline changes.
+You are a project intelligence analyst specialising in detecting conflicts between
+new meeting decisions and established project history.
 
-RULES:
-- Distinguish a PROPOSAL ("let's consider X") from a DECISION ("we will use X").
-- Only flag a conflict when there is genuine inconsistency with an approved historical decision.
-- For each conflict, provide evidence from BOTH the old meeting and the new meeting.
-- Do not invent conflicts. If none exist, return an empty conflicts array.
-- Classify severity: critical (affects project delivery), high (significant rework needed),
-  medium (needs resolution), low (informational).
-- Output ONLY valid JSON.
+A CONFLICT exists when a new decision or task assignment directly contradicts,
+replaces, or is inconsistent with an already-approved decision or existing
+assignment — especially:
+- Technology changes  (e.g. MongoDB → PostgreSQL)
+- Ownership changes   (e.g. Arjun was DB lead, now Sanchita is)
+- Deadline changes    (original deadline vs new one)
+- Scope changes       (feature added / removed vs original scope)
+- Resource changes    (budget, headcount reassignment)
+
+For each conflict output ONLY valid JSON (no markdown). Include a recommendation
+with concrete action, reason, alternatives, pros, and cons so the team can decide.
+
+If there are no conflicts output: {"conflicts": []}
 """
 
-USER_TEMPLATE = """\
-Project requirements: {project_requirements}
-
-Historical approved decisions:
+_USER_TEMPLATE = """\
+=== APPROVED PROJECT HISTORY ===
 {historical_decisions}
 
-Current task assignments:
+=== CURRENT ASSIGNMENTS (active tasks) ===
 {current_assignments}
 
-Current project state:
+=== PROJECT STATE (key-value truth) ===
 {project_state}
 
-New meeting analysis:
-{meeting_analysis}
+=== NEW MEETING ANALYSIS ===
+Meeting: {meeting_title}  Date: {meeting_date}
+New decisions proposed:
+{new_decisions}
 
-Find conflicts and return ONLY this JSON:
+New task assignments:
+{new_tasks}
+
+=== TASK ===
+Identify every conflict between the new meeting content and the established history.
+For each conflict provide a clear recommendation with action options.
+
+Respond with ONLY this JSON (no markdown, no commentary):
 {{
   "conflicts": [
     {{
       "category": "responsibility|technical_decision|deadline|scope|resource",
-      "title": "...",
-      "previous_state": {{"description": "...", "meeting": "..."}},
-      "new_state": {{"description": "...", "meeting": "..."}},
+      "title": "Short conflict title",
+      "previous_state": {{"key": "value describing what was decided before"}},
+      "new_state": {{"key": "value describing what the new meeting proposes"}},
       "evidence": [
-        {{"source": "historical", "speaker": "...", "quote": "..."}},
-        {{"source": "new", "speaker": "...", "quote": "..."}}
+        {{"speaker": "...", "quote": "exact quote from transcript", "meeting_id": null}}
       ],
       "severity": "low|medium|high|critical",
       "confidence": 0.9,
-      "ai_explanation": "...",
+      "ai_explanation": "One paragraph explaining the conflict and its implications.",
       "recommendation": {{
-        "action": "...",
-        "reason": "...",
-        "alternatives": ["..."],
-        "pros": ["..."],
-        "cons": ["..."],
+        "action": "Recommended action in one sentence",
+        "reason": "Why this action is recommended",
+        "alternatives": ["Alternative 1", "Alternative 2"],
+        "pros": ["Pro 1", "Pro 2"],
+        "cons": ["Con 1"],
         "confidence": 0.85
       }}
     }}
@@ -66,13 +84,102 @@ Find conflicts and return ONLY this JSON:
 
 
 def run_conflict_analyst(state: WorkflowState) -> dict:
-    """LangGraph node — detect conflicts between new meeting and history.
-    TODO (Preetam — AI-5): implement this function.
+    """LangGraph node — detect conflicts vs historical context (AI-5 + AI-6).
+
+    Single LLM call with historical context injected. Recommendation is included
+    in the same response — faster, avoids a second round-trip.
     """
-    # TODO: implement
-    # 1. If no historical_context or no meeting_analysis, return {"conflicts": []}
-    # 2. Build prompt injecting historical_context + meeting_analysis
-    # 3. Call ai.complete_json(system=SYSTEM_PROMPT, user=prompt)
-    # 4. Parse result into list[ConflictRecord]
-    # 5. Return {"conflicts": [ConflictRecord(**c) for c in result["conflicts"]]}
-    raise NotImplementedError("Conflict Analyst not yet implemented — Preetam AI-5")
+    from app.ai.factory import get_ai_service
+
+    if not state.meeting_analysis or not state.historical_context:
+        logger.warning("Conflict Analyst: missing meeting_analysis or historical_context — skipping")
+        return {"conflicts": []}
+
+    ai = get_ai_service()
+    hist = state.historical_context
+    analysis = state.meeting_analysis
+    meta = state.meeting_metadata
+
+    hist_dec_text = (
+        "\n".join(
+            f"- [{d['category']}] {d['title']}: {d['description']}"
+            for d in hist.previous_decisions
+        )
+        or "(no approved decisions yet)"
+    )
+
+    assign_text = (
+        "\n".join(
+            f"- {t['title']} → {t['assigned_to_name'] or 'unassigned'} ({t['status']})"
+            for t in hist.current_assignments
+        )
+        or "(no active assignments)"
+    )
+
+    state_text = (
+        "\n".join(f"  {k}: {v}" for k, v in hist.project_state.items())
+        or "(empty — first meeting)"
+    )
+
+    new_dec_text = (
+        "\n".join(
+            f"- [{d.category}/{d.status}] {d.title}: {d.description}"
+            for d in analysis.decisions
+        )
+        or "(none)"
+    )
+
+    new_task_text = (
+        "\n".join(
+            f"- {t.title} → {t.assigned_to_name or 'unassigned'} (due: {t.due_date or 'TBD'})"
+            for t in analysis.tasks
+        )
+        or "(none)"
+    )
+
+    prompt = _USER_TEMPLATE.format(
+        historical_decisions=hist_dec_text,
+        current_assignments=assign_text,
+        project_state=state_text,
+        meeting_title=meta.get("title", ""),
+        meeting_date=meta.get("meeting_date", ""),
+        new_decisions=new_dec_text,
+        new_tasks=new_task_text,
+    )
+
+    logger.info("Conflict Analyst: calling LLM for meeting %s", state.meeting_id)
+    raw = ai.complete_json(system=SYSTEM_PROMPT, user=prompt)
+
+    conflicts: list[ConflictRecord] = []
+    for c in raw.get("conflicts", []):
+        for ev in c.get("evidence", []):
+            ev.setdefault("meeting_id", state.meeting_id)
+            ev.setdefault("meeting_title", meta.get("title", ""))
+
+        rec_raw = c.get("recommendation")
+        recommendation = None
+        if rec_raw:
+            try:
+                recommendation = ConflictRecommendation(**rec_raw)
+            except Exception as exc:
+                logger.warning("Malformed recommendation for conflict %s: %s", c.get("title"), exc)
+
+        try:
+            conflicts.append(
+                ConflictRecord(
+                    category=c.get("category", "other"),
+                    title=c.get("title", "Unnamed conflict"),
+                    previous_state=c.get("previous_state", {}),
+                    new_state=c.get("new_state", {}),
+                    evidence=[EvidenceItem(**ev) for ev in c.get("evidence", [])],
+                    severity=c.get("severity", "medium"),
+                    confidence=c.get("confidence", 0.8),
+                    ai_explanation=c.get("ai_explanation", ""),
+                    recommendation=recommendation,
+                )
+            )
+        except Exception as exc:
+            logger.warning("Skipping malformed conflict %s: %s", c.get("title"), exc)
+
+    logger.info("Conflict Analyst done: %d conflicts detected", len(conflicts))
+    return {"conflicts": conflicts}

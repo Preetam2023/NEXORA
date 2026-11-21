@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import Any
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -35,8 +37,15 @@ class Settings(BaseSettings):
     aicore_llm_timeout: int = 60
     ai_enabled: bool = True
 
-    # CORS
+    # CORS — accepts comma-separated string or JSON list
     cors_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def parse_cors(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            return [o.strip() for o in v.split(",") if o.strip()]
+        return v
 
 
 @lru_cache

@@ -12,22 +12,22 @@
 
 | ID | Task | Status | Branch |
 |----|------|--------|--------|
-| INFRA-1 | Repo skeleton: monorepo structure, pyproject.toml, .env.example | ⬜ Todo | `main` (init commit) |
-| INFRA-2 | Supabase schema SQL: all 16 tables (see `backend/db/schema.sql`) | ⬜ Todo | `feature/be-infra` |
-| INFRA-3 | FastAPI app skeleton: main.py, config.py, database.py (asyncpg), CORS, `/health` endpoint | ⬜ Todo | `feature/be-infra` |
-| AI-1 | `AICoreService` — LiteLLM wrapper: `complete()`, `complete_json()`, `complete_stream()`, factory | ⬜ Todo | `feature/ai-core-service` |
-| AI-2 | LangGraph workflow state schema: `WorkflowState`, `MeetingAnalysis`, `ConflictRecord` (Pydantic models) | ⬜ Todo | `feature/ai-state` |
-| AI-3 | **Meeting Analyst Agent** — single mega-extraction LLM call → summary + decisions + tasks + owners + deadlines + evidence (structured JSON) | ⬜ Todo | `feature/ai-meeting-analyst` |
-| AI-4 | **Memory Agent** — SQL retrieval of historical decisions, tasks, assignments, project state for a project | ⬜ Todo | `feature/ai-memory` |
-| AI-5 | **Conflict Analyst Agent** — LLM comparison of new vs historical, classify conflict type + severity + evidence | ⬜ Todo | `feature/ai-conflict` |
-| AI-6 | **Recommendation Agent** — evidence-backed resolution options with pros/cons per conflict | ⬜ Todo | `feature/ai-recommendation` |
-| AI-7 | **Impact Analysis Agent** — find affected tasks/members/deadlines from DB for a proposed change | ⬜ Todo | `feature/ai-impact` |
-| AI-8 | **LangGraph Orchestrator** — wire all nodes, `asyncio.gather()` for parallel steps, approval gate node | ⬜ Todo | `feature/ai-orchestrator` |
-| AI-9 | **Execution Agent** — write approved changes to DB (decisions, tasks, project_state, activity_log) | ⬜ Todo | `feature/ai-execution` |
-| AI-10 | **Copilot Agent** — hybrid retrieval (SQL + semantic/pgvector), stream response via SSE | ⬜ Todo | `feature/ai-copilot` |
-| BE-1 | Meeting API routes: `POST /api/meetings/{id}/analyze`, `GET /api/meetings/{id}/analysis` (SSE stream) | ⬜ Todo | `feature/be-meeting-api` |
-| BE-2 | Conflict resolution API: `POST /api/conflicts/{id}/resolve`, `POST /api/conflicts/{id}/reject` | ⬜ Todo | `feature/be-conflict-api` |
-| BE-3 | Copilot chat API: `POST /api/copilot/chat` (SSE streaming response) | ⬜ Todo | `feature/be-copilot-api` |
+| INFRA-1 | Repo skeleton: monorepo structure, pyproject.toml, .env.example | ✅ Done | `main` |
+| INFRA-2 | Supabase schema SQL: all 16 tables (see `backend/db/schema.sql`) | ✅ Done | `main` |
+| INFRA-3 | FastAPI app skeleton: main.py, config.py, database.py (asyncpg), CORS, `/health` endpoint | ✅ Done | `main` |
+| AI-1 | `AICoreService` — LiteLLM wrapper: `complete()`, `complete_json()`, `complete_stream()`, factory | ✅ Done | `main` |
+| AI-2 | LangGraph workflow state schema: `WorkflowState`, `MeetingAnalysis`, `ConflictRecord` (Pydantic models) | ✅ Done | `main` |
+| AI-3 | **Meeting Analyst Agent** — single mega-extraction LLM call → summary + decisions + tasks + owners + deadlines + evidence (structured JSON) | ✅ Done | `feature/ai-agents` |
+| AI-4 | **Memory Agent** — SQL retrieval of historical decisions, tasks, assignments, project state for a project | ✅ Done | `feature/ai-agents` |
+| AI-5 | **Conflict Analyst Agent** — LLM comparison of new vs historical, classify conflict type + severity + evidence | ✅ Done | `feature/ai-agents` |
+| AI-6 | **Recommendation Agent** — folded into AI-5 (same LLM call, no extra round-trip) | ✅ Done | `feature/ai-agents` |
+| AI-7 | **Impact Analysis Agent** — find affected tasks/members/deadlines from DB for a proposed change | ✅ Done | `feature/ai-agents` |
+| AI-8 | **LangGraph Orchestrator** — wire all nodes, `asyncio.gather()` for parallel steps, approval gate node | ✅ Done | `feature/ai-agents` |
+| AI-9 | **Execution Agent** — write approved changes to DB (decisions, tasks, project_state, activity_log) | ✅ Done | `feature/ai-agents` |
+| AI-10 | **Copilot Agent** — hybrid retrieval (SQL + semantic/pgvector), stream response via SSE | ✅ Done | `feature/ai-agents` |
+| BE-1 | Meeting API routes: `POST /api/meetings/{id}/analyze`, `GET /api/meetings/{id}/analysis` (SSE stream) | ✅ Done | `feature/ai-agents` |
+| BE-2 | Conflict resolution API: `POST /api/conflicts/{id}/resolve`, `POST /api/conflicts/{id}/reject` | ✅ Done | `feature/ai-agents` |
+| BE-3 | Copilot chat API: `POST /api/copilot/chat` (SSE streaming response) | ✅ Done | `feature/ai-agents` |
 | BE-4 | Supabase pgvector setup + transcript chunk embedding pipeline | ⬜ Todo | `feature/be-embeddings` |
 | BE-5 | Risk Radar route: `GET /api/projects/{id}/risks` — deterministic rules-based detection | ⬜ Todo | `feature/be-risks` |
 | DEPLOY-BE | Railway backend deployment: Procfile, railway.toml, env vars, smoke test on live URL | ⬜ Todo | `feature/be-deploy` |

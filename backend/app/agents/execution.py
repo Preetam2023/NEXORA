@@ -1,38 +1,183 @@
-"""Execution Agent — applies approved changes to the database.
-TODO (Preetam — AI-9): implement apply_approved_changes.
-Only runs AFTER human approval. Never modifies state without explicit approval.
+"""Execution Agent — writes approved changes to DB after human approval.
+AI-9: Only called after approval_status == "approved".
 """
 from __future__ import annotations
 
+import logging
+import uuid
+
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+
 from app.agents.state import WorkflowState
+from app.models.models import (
+    ActivityLog,
+    Conflict,
+    Decision,
+    DecisionVersion,
+    ProjectState,
+    Task,
+    User,
+)
+
+logger = logging.getLogger(__name__)
 
 
-async def apply_approved_changes(state: WorkflowState, db) -> dict:
-    """Apply all approved changes from the workflow to the database.
-    TODO (Preetam — AI-9): implement this async function.
+async def apply_approved_changes(state: WorkflowState, db: AsyncSession) -> dict:
+    """LangGraph node — persist approved analysis results to DB (AI-9).
 
-    Called after human clicks Approve in the UI.
+    Called ONLY when state.approval_status == "approved".
+    Writes: decisions (status=approved), tasks, project_state KV, activity_logs.
+    Never deletes historical records — all prior data is immutable.
     """
-    # TODO: implement
-    # For each approved change in state.approved_changes:
-    #   - If type="decision": INSERT into decisions with status="approved"
-    #   - If type="task": INSERT into tasks
-    #   - If type="project_state": UPSERT into project_state (key-value)
-    #   - If type="conflict_resolution": UPDATE conflicts SET status="resolved"
-    #   - Always: INSERT into activity_logs (audit trail)
-    #   - Update project.completion_percentage from task counts
-    # Return: {"execution_result": {"created_tasks": n, "updated_decisions": n, ...}}
-    raise NotImplementedError("Execution Agent not yet implemented — Preetam AI-9")
+    if state.approval_status != "approved":
+        logger.info("Execution Agent: not approved (%s) — skipping", state.approval_status)
+        return {"execution_result": {"skipped": True, "reason": state.approval_status}}
+
+    if not state.meeting_analysis:
+        return {"execution_result": {"skipped": True, "reason": "no_analysis"}}
+
+    analysis = state.meeting_analysis
+    written_decisions = []
+    written_tasks = []
+    written_state_keys = []
+
+    # 1. Write decisions
+    for d in analysis.decisions:
+        decision = Decision(
+            id=str(uuid.uuid4()),
+            project_id=state.project_id,
+            meeting_id=state.meeting_id,
+            title=d.title,
+            description=d.description,
+            category=d.category,
+            status="approved",
+            evidence=[ev.model_dump() for ev in d.evidence],
+            confidence=d.confidence,
+        )
+        db.add(decision)
+        written_decisions.append(decision.id)
+
+        # Log activity
+        db.add(ActivityLog(
+            project_id=state.project_id,
+            event_type="decision_approved",
+            description=f"Decision approved: {d.title}",
+            extra_data={"decision_id": decision.id, "meeting_id": state.meeting_id},
+        ))
+
+    # 2. Write tasks — resolve assigned_to UUID by name lookup
+    name_cache: dict[str, str | None] = {}
+
+    async def _resolve_name(name: str | None) -> str | None:
+        if not name:
+            return None
+        if name in name_cache:
+            return name_cache[name]
+        result = await db.execute(select(User).where(User.name == name))
+        user = result.scalar_one_or_none()
+        name_cache[name] = str(user.id) if user else None
+        return name_cache[name]
+
+    for t in analysis.tasks:
+        assignee_id = await _resolve_name(t.assigned_to_name)
+        from datetime import date
+        due_date = None
+        if t.due_date:
+            try:
+                due_date = date.fromisoformat(t.due_date)
+            except ValueError:
+                pass
+
+        task = Task(
+            id=str(uuid.uuid4()),
+            project_id=state.project_id,
+            title=t.title,
+            description=t.description,
+            assigned_to=assignee_id,
+            priority=t.priority,
+            status="todo",
+            due_date=due_date,
+            source_meeting_id=state.meeting_id,
+            source_evidence=[ev.model_dump() for ev in t.evidence],
+        )
+        db.add(task)
+        written_tasks.append(task.id)
+
+        db.add(ActivityLog(
+            project_id=state.project_id,
+            event_type="task_created",
+            description=f"Task created: {t.title}",
+            extra_data={
+                "task_id": task.id,
+                "assigned_to_name": t.assigned_to_name,
+                "meeting_id": state.meeting_id,
+            },
+        ))
+
+    # 3. Update project_state from approved changes
+    for change in state.approved_changes:
+        key = change.get("key")
+        value = change.get("value")
+        if not key:
+            continue
+
+        result = await db.execute(
+            select(ProjectState).where(
+                ProjectState.project_id == state.project_id,
+                ProjectState.state_key == key,
+            )
+        )
+        existing = result.scalar_one_or_none()
+        if existing:
+            existing.state_value = value
+        else:
+            db.add(ProjectState(
+                project_id=state.project_id,
+                state_key=key,
+                state_value=value,
+            ))
+        written_state_keys.append(key)
+
+    await db.commit()
+
+    result_summary = {
+        "decisions_written": len(written_decisions),
+        "tasks_written": len(written_tasks),
+        "state_keys_updated": written_state_keys,
+        "meeting_id": state.meeting_id,
+    }
+    logger.info("Execution Agent done: %s", result_summary)
+    return {"execution_result": result_summary}
 
 
-async def apply_conflict_resolution(conflict_id: str, resolution: str, db) -> dict:
-    """Called directly from the conflict resolve API endpoint (BE-2).
-    TODO (Preetam — AI-9 / BE-2): implement this async function.
+async def apply_conflict_resolution(
+    conflict_id: str,
+    resolution: str,
+    approved_by: str,
+    db: AsyncSession,
+) -> None:
+    """Called from the conflict resolve API endpoint (not a LangGraph node).
+
+    Updates the conflict status and logs the resolution.
     """
-    # TODO: implement
-    # 1. Load conflict from DB
-    # 2. Update conflict: status="resolved", resolved_at=now()
-    # 3. Apply the specific resolution action to project_state / decisions / tasks
-    # 4. Log to activity_logs
-    # Return: {"ok": True}
-    raise NotImplementedError("apply_conflict_resolution not yet implemented — Preetam BE-2")
+    result = await db.execute(select(Conflict).where(Conflict.id == conflict_id))
+    conflict = result.scalar_one_or_none()
+    if not conflict:
+        raise ValueError(f"Conflict {conflict_id} not found")
+
+    from datetime import datetime, timezone
+    conflict.status = "resolved"
+    conflict.resolved_at = datetime.now(timezone.utc)
+
+    db.add(ActivityLog(
+        project_id=conflict.project_id,
+        event_type="conflict_resolved",
+        description=f"Conflict resolved: {conflict.title}",
+        extra_data={
+            "conflict_id": conflict_id,
+            "resolution": resolution,
+            "approved_by": approved_by,
+        },
+    ))
+    await db.commit()
