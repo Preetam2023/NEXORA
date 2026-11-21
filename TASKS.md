@@ -40,21 +40,21 @@
 
 | ID | Task | Status | Branch |
 |----|------|--------|--------|
-| FE-1 | **Frontend scaffold**: Vite + React + TS + Tailwind + shadcn/ui, React Router, `src/api/client.ts`, `src/types/api.ts` | ⬜ Todo | `feature/ui-scaffold` |
-| FE-2 | **Organization Dashboard** — stats cards (Active Projects, Meetings Analyzed, Pending Tasks, Open Conflicts), project list cards with health badge, AI Attention Center, Recent Activity feed | ⬜ Todo | `feature/ui-dashboard` |
-| FE-3 | **Project Workspace** — project header + 6-tab layout (Overview, Meetings, Decisions, Tasks, Members, AI Insights) + left meeting history panel | ⬜ Todo | `feature/ui-workspace` |
-| FE-4 | **Meeting Upload** — file/paste textarea, metadata form (title, type, date, participants), Analyze button, SSE progress bar | ⬜ Todo | `feature/ui-meeting-upload` |
-| FE-5 | **Meeting Analysis Results** — extracted decisions list, tasks list, detected conflicts, recommendations, Approve/Reject per item | ⬜ Todo | `feature/ui-analysis-results` |
-| FE-6 | **AI Intelligence Center** — conflict list with severity badges, conflict detail panel (old evidence vs new, AI explanation, resolution options + Approve/Reject) | ⬜ Todo | `feature/ui-intelligence` |
-| FE-7 | **Task Management tab** — task table, create task modal, inline status update dropdown | ⬜ Todo | `feature/ui-tasks` |
-| FE-8 | **Project AI Copilot** — chat bubble UI, SSE streaming token-by-token, evidence citations panel, suggested question chips | ⬜ Todo | `feature/ui-copilot` |
-| BE-CRUD-1 | FastAPI route: Projects CRUD — `POST/GET/PATCH /api/projects` | ⬜ Todo | `feature/be-projects` |
-| BE-CRUD-2 | FastAPI route: Members — `GET/POST /api/projects/{id}/members` | ⬜ Todo | `feature/be-members` |
-| BE-CRUD-3 | FastAPI route: Tasks CRUD — `GET/POST/PATCH /api/tasks`, `GET /api/projects/{id}/tasks` | ⬜ Todo | `feature/be-tasks` |
-| BE-CRUD-4 | FastAPI route: Dashboard aggregation — `GET /api/dashboard` (SQL count queries only, no LLM) | ⬜ Todo | `feature/be-dashboard` |
-| BE-CRUD-5 | FastAPI route: Decisions — `GET /api/projects/{id}/decisions`, `GET /api/decisions/{id}` | ⬜ Todo | `feature/be-decisions` |
-| SEED | Seed data SQL — Project Alpha + 6 members + 3 meetings (Mon/Wed/Fri transcripts). Load into Supabase. Verify UI shows real data. | ⬜ Todo | `feature/seed-data` |
-| DEPLOY-FE | Vercel frontend deployment: `.env.production` (VITE_API_BASE_URL=Railway URL), `vercel.json` | ⬜ Todo | `feature/fe-deploy` |
+| FE-1 | **Frontend scaffold**: Vite + React + TS + Tailwind + shadcn/ui, React Router, `src/api/client.ts`, `src/types/api.ts` | ✅ Done | `main` |
+| FE-2 | **Organization Dashboard** — stats cards (Active Projects, Meetings Analyzed, Pending Tasks, Open Conflicts), project list cards with health badge, AI Attention Center, Recent Activity feed | ✅ Done | `main` |
+| FE-3 | **Project Workspace** — project header + 6-tab layout (Overview, Meetings, Decisions, Tasks, Members, AI Insights) + left meeting history panel | ✅ Done | `main` |
+| FE-4 | **Meeting Upload** — file/paste textarea, metadata form (title, type, date, participants), Analyze button, SSE progress bar | ✅ Done | `main` |
+| FE-5 | **Meeting Analysis Results** — extracted decisions list, tasks list, detected conflicts, recommendations, Approve/Reject per item | ✅ Done | `main` |
+| FE-6 | **AI Intelligence Center** — conflict list with severity badges, conflict detail panel (old evidence vs new, AI explanation, resolution options + Approve/Reject) | ✅ Done | `main` |
+| FE-7 | **Task Management tab** — task table, create task modal, inline status update dropdown | ✅ Done | `main` |
+| FE-8 | **Project AI Copilot** — chat bubble UI, SSE streaming token-by-token, evidence citations panel, suggested question chips | ✅ Done | `main` |
+| BE-CRUD-1 | FastAPI route: Projects CRUD — `POST/GET/PATCH /api/projects` | ✅ Done | `main` |
+| BE-CRUD-2 | FastAPI route: Members — `GET/POST /api/projects/{id}/members` | ✅ Done | `main` |
+| BE-CRUD-3 | FastAPI route: Tasks CRUD — `GET/POST/PATCH /api/tasks`, `GET /api/projects/{id}/tasks` | ✅ Done | `main` |
+| BE-CRUD-4 | FastAPI route: Dashboard aggregation — `GET /api/dashboard` (SQL count queries only, no LLM) | ✅ Done | `main` |
+| BE-CRUD-5 | FastAPI route: Decisions — `GET /api/projects/{id}/decisions`, `GET /api/decisions/{id}` | ✅ Done | `main` |
+| SEED | Seed data SQL — Project Alpha + 6 members + 3 meetings (Mon/Wed/Fri transcripts). Load into Supabase. Verify UI shows real data. | 🔄 In Progress — SQL ready, needs loading into Supabase | `main` |
+| DEPLOY-FE | Vercel frontend deployment: `.env.production` (VITE_API_BASE_URL=Railway URL), `vercel.json` | 🔄 In Progress — `vercel.json` ready, needs Vercel project + env var set | `main` |
 
 ---
 
@@ -62,9 +62,9 @@
 
 | ID | Task | Owner |
 |----|------|-------|
-| INT-1 | Run full 3-meeting workflow end-to-end after all PRs merged | Preetam leads, Saikat verifies UI |
-| INT-2 | Fix integration bugs from merged PRs | Preetam |
-| INT-3 | Demo script: 3-meeting walkthrough + 4 Copilot questions | Both |
+| INT-1 | Run full 3-meeting workflow end-to-end after all PRs merged | 🔄 Next — Preetam leads, Saikat verifies UI |
+| INT-2 | Fix integration bugs from merged PRs | ⬜ Todo — Preetam |
+| INT-3 | Demo script: 3-meeting walkthrough + 4 Copilot questions | ⬜ Todo — Both |
 
 ---
 

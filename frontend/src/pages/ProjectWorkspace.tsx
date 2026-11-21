@@ -1,6 +1,6 @@
 import { useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   getProject, getMeetings, getDecisions, getMembers, getTasks,
   getRisks, getProjectState, getConflicts, createMeeting, createTask,
@@ -11,9 +11,366 @@ import { cn, formatDate, formatDateTime, statusColor, severityColor, healthDot, 
 import {
   AlertTriangle, CheckCircle2, Clock, Users, Zap, FileText,
   ListChecks, Brain, Plus, Calendar, Shield, Pencil, X, Check,
-  TrendingUp, Activity, Flame,
+  TrendingUp, Activity, Flame, Search, GitMerge, CalendarClock, RefreshCw,
 } from 'lucide-react'
 import type { Task, Member, Project, Meeting, Decision, Conflict } from '@/types/api'
+
+// ── Analysis pipeline step definitions ───────────────────────────────────────
+const PIPELINE_STEPS = [
+  { id: 'read',      icon: Search,       label: 'Understanding transcript',         detail: 'Reading context, participants, and discussion flow…',         dur: 4000 },
+  { id: 'extract',   icon: Brain,        label: 'Extracting decisions & tasks',     detail: 'Identifying commitments, owners, and priorities…',           dur: 7000 },
+  { id: 'memory',    icon: GitMerge,     label: 'Checking knowledge graph',         detail: 'Comparing against historical decisions and assignments…',    dur: 5000 },
+  { id: 'deadlines', icon: CalendarClock,label: 'Extracting deadlines',             detail: 'Parsing dates and mapping to project timeline…',             dur: 4000 },
+  { id: 'update',    icon: RefreshCw,    label: 'Updating project state',           detail: 'Persisting approved decisions and flagging conflicts…',      dur: 4000 },
+] as const
+
+type StepId = typeof PIPELINE_STEPS[number]['id']
+
+interface PipelineState {
+  active: StepId | null
+  completed: StepId[]
+  done: boolean
+}
+
+// Animated pipeline component shown while analysis runs
+function AnalysisPipeline({ onDone }: { onDone: () => void }) {
+  const [pipeline, setPipeline] = useState<PipelineState>({ active: PIPELINE_STEPS[0].id, completed: [], done: false })
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const stepIndexRef = useRef(0)
+
+  useEffect(() => {
+    function advance() {
+      const idx = stepIndexRef.current
+      if (idx >= PIPELINE_STEPS.length) {
+        setPipeline({ active: null, completed: PIPELINE_STEPS.map(s => s.id), done: true })
+        return
+      }
+      const step = PIPELINE_STEPS[idx]
+      setPipeline(prev => ({
+        active: step.id,
+        completed: prev.completed,
+        done: false,
+      }))
+      timerRef.current = setTimeout(() => {
+        setPipeline(prev => ({
+          active: null,
+          completed: [...prev.completed, step.id],
+          done: false,
+        }))
+        stepIndexRef.current += 1
+        // small pause between steps
+        timerRef.current = setTimeout(advance, 300)
+      }, step.dur)
+    }
+    advance()
+    return () => { if (timerRef.current) clearTimeout(timerRef.current) }
+  }, [])
+
+  // When all steps done, notify parent after short pause
+  useEffect(() => {
+    if (pipeline.done) {
+      const t = setTimeout(onDone, 600)
+      return () => clearTimeout(t)
+    }
+  }, [pipeline.done, onDone])
+
+  const totalDur = PIPELINE_STEPS.reduce((s, p) => s + p.dur, 0)
+  const elapsed = PIPELINE_STEPS
+    .filter(s => pipeline.completed.includes(s.id))
+    .reduce((s, p) => s + p.dur, 0)
+  const pct = Math.round((elapsed / totalDur) * 100)
+
+  return (
+    <div className="bg-white border border-blue-200 rounded-xl p-5 mb-5 shadow-sm animate-in">
+      <div className="flex items-center gap-2.5 mb-4">
+        <div className="w-7 h-7 bg-blue-500 rounded-lg flex items-center justify-center flex-shrink-0">
+          <Brain size={14} className="text-white" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-slate-800">AI Analysis Running</p>
+          <p className="text-xs text-slate-400">Usually takes 15–30 seconds</p>
+        </div>
+        <div className="ml-auto text-right">
+          <p className="text-sm font-bold text-blue-600 tab-num">{pct}%</p>
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden mb-5">
+        <div
+          className="h-full bg-blue-500 rounded-full transition-all duration-700"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+
+      {/* Steps */}
+      <div className="space-y-2.5">
+        {PIPELINE_STEPS.map((step, i) => {
+          const isCompleted = pipeline.completed.includes(step.id)
+          const isActive = pipeline.active === step.id
+          const isPending = !isCompleted && !isActive
+          const Icon = step.icon
+          return (
+            <div
+              key={step.id}
+              className={cn(
+                'flex items-start gap-3 rounded-lg px-3 py-2.5 transition-all duration-300',
+                isActive && 'bg-blue-50 border border-blue-100',
+                isCompleted && 'opacity-60',
+                isPending && 'opacity-30',
+              )}
+            >
+              {/* Icon/check */}
+              <div className={cn(
+                'w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5',
+                isCompleted && 'bg-emerald-100',
+                isActive && 'bg-blue-100',
+                isPending && 'bg-slate-100',
+              )}>
+                {isCompleted
+                  ? <Check size={11} className="text-emerald-600" />
+                  : isActive
+                  ? <Icon size={11} className="text-blue-600 animate-pulse" />
+                  : <Icon size={11} className="text-slate-400" />
+                }
+              </div>
+              {/* Text */}
+              <div className="flex-1 min-w-0">
+                <p className={cn(
+                  'text-xs font-medium leading-tight',
+                  isActive && 'text-blue-700',
+                  isCompleted && 'text-slate-500',
+                  isPending && 'text-slate-400',
+                )}>
+                  {step.label}
+                </p>
+                {isActive && (
+                  <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">{step.detail}</p>
+                )}
+              </div>
+              {/* Step number for pending */}
+              {isPending && (
+                <span className="text-xs text-slate-300 font-mono flex-shrink-0 mt-0.5">{String(i + 1).padStart(2, '0')}</span>
+              )}
+              {isActive && (
+                <div className="flex gap-0.5 items-center mt-1 flex-shrink-0">
+                  {[0, 150, 300].map(d => (
+                    <span key={d} className="w-1 h-1 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: `${d}ms` }} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// Summary card shown immediately after pipeline animation finishes
+function AnalysisSummary({
+  result,
+  onApproveDecision, onRejectDecision,
+  onApproveTask, onRejectTask,
+  onDismiss,
+}: {
+  result: { meetingId: string; decisions: Decision[]; tasks: Task[]; conflicts: Conflict[]; summary: string }
+  onApproveDecision: (id: string) => void
+  onRejectDecision: (id: string) => void
+  onApproveTask: (id: string) => void
+  onRejectTask: (id: string) => void
+  onDismiss: () => void
+}) {
+  const openConflicts = result.conflicts.filter(c => c.status === 'open')
+  const deadlineTasks = result.tasks.filter(t => t.due_date)
+  const [showDetails, setShowDetails] = useState(false)
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl mb-5 shadow-sm animate-in overflow-hidden">
+      {/* Header strip */}
+      <div className="bg-gradient-to-r from-[#0F172A] to-slate-700 px-5 py-4">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 bg-emerald-400 rounded-lg flex items-center justify-center flex-shrink-0">
+            <CheckCircle2 size={14} className="text-white" />
+          </div>
+          <div className="flex-1">
+            <p className="text-white text-sm font-semibold">Analysis Complete</p>
+            <p className="text-slate-400 text-xs mt-0.5">Review what NEXORA found in this meeting</p>
+          </div>
+          <button onClick={onDismiss} className="text-slate-400 hover:text-white transition-colors p-1 rounded flex-shrink-0">
+            <X size={15} />
+          </button>
+        </div>
+      </div>
+
+      <div className="p-5">
+        {/* Stats row */}
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="bg-slate-50 border border-slate-100 rounded-lg p-3 text-center">
+            <p className="text-xl font-bold text-slate-900 tab-num">{result.decisions.length}</p>
+            <p className="text-xs text-slate-500 mt-0.5">Decisions</p>
+          </div>
+          <div className={cn(
+            'border rounded-lg p-3 text-center',
+            openConflicts.length > 0 ? 'bg-amber-50 border-amber-100' : 'bg-slate-50 border-slate-100'
+          )}>
+            <p className={cn('text-xl font-bold tab-num', openConflicts.length > 0 ? 'text-amber-600' : 'text-slate-900')}>
+              {openConflicts.length}
+            </p>
+            <p className="text-xs text-slate-500 mt-0.5">Conflicts</p>
+          </div>
+          <div className={cn(
+            'border rounded-lg p-3 text-center',
+            deadlineTasks.length > 0 ? 'bg-blue-50 border-blue-100' : 'bg-slate-50 border-slate-100'
+          )}>
+            <p className={cn('text-xl font-bold tab-num', deadlineTasks.length > 0 ? 'text-blue-600' : 'text-slate-900')}>
+              {deadlineTasks.length}
+            </p>
+            <p className="text-xs text-slate-500 mt-0.5">Deadlines</p>
+          </div>
+        </div>
+
+        {/* AI Summary */}
+        {result.summary && (
+          <div className="bg-blue-50 border border-blue-100 rounded-lg px-4 py-3 mb-4">
+            <p className="text-xs font-semibold text-blue-700 mb-1">AI Summary</p>
+            <p className="text-xs text-slate-600 leading-relaxed">{result.summary}</p>
+          </div>
+        )}
+
+        {/* Conflicts alert */}
+        {openConflicts.length > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-4">
+            <p className="text-xs font-semibold text-amber-800 mb-1.5 flex items-center gap-1.5">
+              <AlertTriangle size={12} />
+              {openConflicts.length} conflict{openConflicts.length > 1 ? 's' : ''} need your review
+            </p>
+            {openConflicts.map(c => (
+              <div key={c.id} className="flex items-start gap-2 mb-1 last:mb-0">
+                <span className={cn('text-xs px-1.5 py-0.5 rounded font-medium flex-shrink-0 mt-0.5', severityColor(c.severity))}>{c.severity}</span>
+                <p className="text-xs text-slate-700">{c.title}</p>
+              </div>
+            ))}
+            <p className="text-xs text-amber-600 mt-2 font-medium">→ Go to AI Insights tab to resolve</p>
+          </div>
+        )}
+
+        {/* Deadline tasks */}
+        {deadlineTasks.length > 0 && (
+          <div className="mb-4">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+              <CalendarClock size={11} /> New Deadlines
+            </p>
+            <div className="space-y-1.5">
+              {deadlineTasks.slice(0, 3).map(t => (
+                <div key={t.id} className="flex items-center gap-2 text-xs">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0" />
+                  <span className="text-slate-700 flex-1 truncate">{t.title}</span>
+                  <span className="text-slate-400 font-mono flex-shrink-0">{t.due_date}</span>
+                </div>
+              ))}
+              {deadlineTasks.length > 3 && (
+                <p className="text-xs text-slate-400">+{deadlineTasks.length - 3} more</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Toggle detailed approve/reject */}
+        <button
+          onClick={() => setShowDetails(v => !v)}
+          className="w-full flex items-center justify-between text-xs text-slate-500 hover:text-slate-700 py-2 border-t border-slate-100 mt-2 transition-colors"
+        >
+          <span className="font-medium">{showDetails ? 'Hide' : 'Review & approve'} decisions and tasks</span>
+          <span>{showDetails ? '↑' : '↓'}</span>
+        </button>
+
+        {showDetails && (
+          <div className="mt-3 space-y-4">
+            {/* Decisions */}
+            {result.decisions.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Decisions ({result.decisions.length})</p>
+                <div className="space-y-2">
+                  {result.decisions.map(d => (
+                    <div key={d.id} className={cn(
+                      'border rounded-lg p-3',
+                      d.status === 'approved' ? 'border-emerald-200 border-l-4 border-l-emerald-400 bg-emerald-50/30' :
+                      d.status === 'rejected' ? 'border-slate-200 bg-slate-50 opacity-50' :
+                      'border-amber-200 border-l-4 border-l-amber-400 border-dashed',
+                    )}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-slate-800">{d.title}</p>
+                          {d.description && <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{d.description}</p>}
+                        </div>
+                        {d.status === 'proposed' && d.id ? (
+                          <div className="flex gap-1 flex-shrink-0">
+                            <button onClick={() => onApproveDecision(d.id!)} className="text-emerald-600 hover:bg-emerald-50 p-1 rounded" title="Approve"><CheckCircle2 size={15} /></button>
+                            <button onClick={() => onRejectDecision(d.id!)} className="text-red-500 hover:bg-red-50 p-1 rounded" title="Reject"><X size={15} /></button>
+                          </div>
+                        ) : (
+                          <span className={cn('text-xs px-1.5 py-0.5 rounded font-medium flex-shrink-0',
+                            d.status === 'approved' ? 'text-emerald-700 bg-emerald-100' : 'text-slate-500 bg-slate-100'
+                          )}>{d.status}</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Tasks */}
+            {result.tasks.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Tasks ({result.tasks.length})</p>
+                <div className="space-y-2">
+                  {result.tasks.map(t => (
+                    <div key={t.id} className={cn(
+                      'border rounded-lg p-3',
+                      t.status === 'todo' ? 'border-emerald-200 border-l-4 border-l-emerald-400 bg-emerald-50/30' :
+                      t.status === 'cancelled' ? 'border-slate-200 bg-slate-50 opacity-50' :
+                      'border-amber-200 border-l-4 border-l-amber-400 border-dashed',
+                    )}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-slate-800">{t.title}</p>
+                          <div className="flex gap-2 mt-0.5 text-xs text-slate-500">
+                            {t.assigned_to_name && <span>→ {t.assigned_to_name}</span>}
+                            {t.due_date && <span className="text-blue-600 font-medium">Due {t.due_date}</span>}
+                          </div>
+                        </div>
+                        {t.status === 'proposed' && t.id ? (
+                          <div className="flex gap-1 flex-shrink-0">
+                            <button onClick={() => onApproveTask(t.id!)} className="text-emerald-600 hover:bg-emerald-50 p-1 rounded" title="Approve"><CheckCircle2 size={15} /></button>
+                            <button onClick={() => onRejectTask(t.id!)} className="text-red-500 hover:bg-red-50 p-1 rounded" title="Reject"><X size={15} /></button>
+                          </div>
+                        ) : (
+                          <span className={cn('text-xs px-1.5 py-0.5 rounded font-medium flex-shrink-0',
+                            t.status === 'todo' ? 'text-emerald-700 bg-emerald-100' : 'text-slate-500 bg-slate-100'
+                          )}>{t.status === 'todo' ? 'approved' : t.status}</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Okay button */}
+        <button
+          onClick={onDismiss}
+          className="w-full mt-4 bg-[#0F172A] hover:bg-slate-800 text-white text-sm font-medium py-2.5 rounded-lg transition-colors"
+        >
+          Got it — view in project tabs
+        </button>
+      </div>
+    </div>
+  )
+}
 
 type Tab = 'overview' | 'meetings' | 'decisions' | 'tasks' | 'members' | 'insights'
 
@@ -421,7 +778,6 @@ function MeetingsTab({ projectId }: { projectId: string }) {
   const [meetingType, setMeetingType] = useState('general')
   const [loading, setLoading] = useState(false)
   const [analyzingId, setAnalyzingId] = useState<string | null>(null)
-  const [progressMsg, setProgressMsg] = useState('')
   const [analysisResult, setAnalysisResult] = useState<{
     meetingId: string
     decisions: Decision[]
@@ -443,14 +799,10 @@ function MeetingsTab({ projectId }: { projectId: string }) {
       setTitle(''); setTranscript(''); setShowUpload(false)
       if (transcript.trim()) {
         setAnalyzingId(meeting.id)
-        setProgressMsg('Starting analysis…')
         await triggerAnalysis(meeting.id).catch(() => {})
 
         // Stream SSE progress and capture result for approve/reject
         const cleanup = streamMeetingAnalysis(meeting.id, (e) => {
-          if (e.type === 'progress' && 'message' in e.payload) {
-            setProgressMsg((e.payload as { message: string }).message)
-          }
           if (e.type === 'result') {
             const r = e.payload as {
               decisions?: Decision[]
@@ -466,14 +818,12 @@ function MeetingsTab({ projectId }: { projectId: string }) {
               summary: r.summary ?? '',
             })
             setAnalyzingId(null)
-            setProgressMsg('')
             void qc.invalidateQueries({ queryKey: ['meetings', projectId] })
             void qc.invalidateQueries({ queryKey: ['conflicts', projectId] })
             cleanup()
           }
           if (e.type === 'error') {
             setAnalyzingId(null)
-            setProgressMsg('')
             cleanup()
           }
         })
@@ -555,151 +905,21 @@ function MeetingsTab({ projectId }: { projectId: string }) {
         </div>
       )}
 
-      {/* Analysis in progress */}
+      {/* Analysis pipeline animation */}
       {analyzingId && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-5 flex items-center gap-3 animate-in">
-          <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
-          <p className="text-sm text-blue-700 font-medium">{progressMsg || 'Running AI analysis…'}</p>
-        </div>
+        <AnalysisPipeline onDone={() => { /* pipeline timed out naturally; real completion comes via SSE */ }} />
       )}
 
-      {/* Analysis results — approve/reject panel */}
+      {/* Analysis complete — summary + approve/reject */}
       {analysisResult && (
-        <div className="bg-white border border-amber-200 rounded-xl p-5 mb-5 shadow-sm animate-in">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Brain size={15} className="text-amber-500" />
-              <p className="font-semibold text-slate-800 text-sm">Analysis Results — Review &amp; Approve</p>
-            </div>
-            <button onClick={() => setAnalysisResult(null)} className="text-slate-400 hover:text-slate-600 p-1 rounded">
-              <X size={14} />
-            </button>
-          </div>
-
-          {analysisResult.summary && (
-            <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-lg">
-              <p className="text-xs font-semibold text-blue-700 mb-1">AI Summary</p>
-              <p className="text-xs text-slate-600 leading-relaxed">{analysisResult.summary}</p>
-            </div>
-          )}
-
-          {/* Conflicts */}
-          {analysisResult.conflicts.filter(c => c.status === 'open').length > 0 && (
-            <div className="mb-4">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                <AlertTriangle size={12} className="text-amber-500" /> Conflicts Detected
-              </p>
-              <div className="space-y-2">
-                {analysisResult.conflicts.filter(c => c.status === 'open').map(c => (
-                  <div key={c.id} className="border border-amber-200 border-l-4 border-l-amber-400 rounded-lg p-3 bg-amber-50/40">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm font-medium text-slate-800">{c.title}</p>
-                      <span className={cn('text-xs px-1.5 py-0.5 rounded font-medium flex-shrink-0', severityColor(c.severity))}>{c.severity}</span>
-                    </div>
-                    {c.ai_explanation && <p className="text-xs text-slate-500 mt-1 leading-relaxed">{c.ai_explanation}</p>}
-                    <p className="text-xs text-amber-600 mt-1.5 font-medium">Go to AI Insights tab to resolve this conflict.</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Decisions */}
-          {analysisResult.decisions.length > 0 && (
-            <div className="mb-4">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Extracted Decisions ({analysisResult.decisions.length})</p>
-              <div className="space-y-2">
-                {analysisResult.decisions.map(d => (
-                  <div key={d.id} className={cn(
-                    'border rounded-lg p-3',
-                    d.status === 'approved' ? 'border-emerald-200 border-l-4 border-l-emerald-400 bg-emerald-50/30' :
-                    d.status === 'rejected' ? 'border-slate-200 bg-slate-50 opacity-60' :
-                    'border-amber-200 border-l-4 border-l-amber-400 border-dashed bg-white',
-                  )}>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-800">{d.title}</p>
-                        {d.description && <p className="text-xs text-slate-500 mt-0.5">{d.description}</p>}
-                      </div>
-                      {d.status === 'proposed' && d.id ? (
-                        <div className="flex gap-1.5 flex-shrink-0">
-                          <button
-                            onClick={() => handleApproveDecision(d.id!)}
-                            className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 p-1 rounded transition-colors"
-                            title="Approve"
-                          >
-                            <CheckCircle2 size={16} />
-                          </button>
-                          <button
-                            onClick={() => handleRejectDecision(d.id!)}
-                            className="text-red-500 hover:text-red-600 hover:bg-red-50 p-1 rounded transition-colors"
-                            title="Reject"
-                          >
-                            <X size={16} />
-                          </button>
-                        </div>
-                      ) : (
-                        <span className={cn('text-xs px-2 py-0.5 rounded font-medium',
-                          d.status === 'approved' ? 'text-emerald-700 bg-emerald-100' : 'text-slate-500 bg-slate-100'
-                        )}>{d.status}</span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Tasks */}
-          {analysisResult.tasks.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Extracted Tasks ({analysisResult.tasks.length})</p>
-              <div className="space-y-2">
-                {analysisResult.tasks.map(t => (
-                  <div key={t.id} className={cn(
-                    'border rounded-lg p-3',
-                    t.status === 'todo' ? 'border-emerald-200 border-l-4 border-l-emerald-400 bg-emerald-50/30' :
-                    t.status === 'cancelled' ? 'border-slate-200 bg-slate-50 opacity-60' :
-                    'border-amber-200 border-l-4 border-l-amber-400 border-dashed bg-white',
-                  )}>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-800">{t.title}</p>
-                        <div className="flex gap-3 mt-0.5 text-xs text-slate-500">
-                          {t.assigned_to_name && <span>→ {t.assigned_to_name}</span>}
-                          {t.due_date && <span>Due {t.due_date}</span>}
-                          {t.priority && <span className="capitalize">{t.priority}</span>}
-                        </div>
-                      </div>
-                      {t.status === 'proposed' && t.id ? (
-                        <div className="flex gap-1.5 flex-shrink-0">
-                          <button
-                            onClick={() => handleApproveTask(t.id!)}
-                            className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 p-1 rounded transition-colors"
-                            title="Approve"
-                          >
-                            <CheckCircle2 size={16} />
-                          </button>
-                          <button
-                            onClick={() => handleRejectTask(t.id!)}
-                            className="text-red-500 hover:text-red-600 hover:bg-red-50 p-1 rounded transition-colors"
-                            title="Reject"
-                          >
-                            <X size={16} />
-                          </button>
-                        </div>
-                      ) : (
-                        <span className={cn('text-xs px-2 py-0.5 rounded font-medium',
-                          t.status === 'todo' ? 'text-emerald-700 bg-emerald-100' : 'text-slate-500 bg-slate-100'
-                        )}>{t.status === 'todo' ? 'approved' : t.status}</span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+        <AnalysisSummary
+          result={analysisResult}
+          onApproveDecision={handleApproveDecision}
+          onRejectDecision={handleRejectDecision}
+          onApproveTask={handleApproveTask}
+          onRejectTask={handleRejectTask}
+          onDismiss={() => setAnalysisResult(null)}
+        />
       )}
 
       {meetings.length === 0 ? (
