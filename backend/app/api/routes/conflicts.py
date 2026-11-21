@@ -57,6 +57,9 @@ async def resolve_conflict(
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        logger.exception("Error resolving conflict %s", conflict_id)
+        raise HTTPException(status_code=500, detail=f"Internal error: {exc}")
 
     return {"ok": True, "conflict_id": conflict_id, "status": "resolved"}
 

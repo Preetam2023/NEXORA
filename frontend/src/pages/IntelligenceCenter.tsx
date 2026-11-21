@@ -64,6 +64,7 @@ export default function IntelligenceCenter() {
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({})
   const [resolvingId, setResolvingId] = useState<string | null>(null)
   const [rejectingId, setRejectingId] = useState<string | null>(null)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['conflicts', projectId],
@@ -80,6 +81,7 @@ export default function IntelligenceCenter() {
     const opts = buildRecommendationOptions(conflict)
     const chosen = opts.find(o => o.id === selectedOpt)
     setResolvingId(conflict.id)
+    setErrorMsg(null)
     try {
       await resolveConflict(conflict.id, { resolution: chosen?.label ?? 'Accepted' })
       await qc.invalidateQueries({ queryKey: ['conflicts', projectId] })
@@ -87,11 +89,14 @@ export default function IntelligenceCenter() {
       await qc.invalidateQueries({ queryKey: ['decisions', projectId] })
       await qc.invalidateQueries({ queryKey: ['dashboard'] })
       setSelectedConflict(null)
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Failed to resolve conflict')
     } finally { setResolvingId(null) }
   }
 
   async function handleReject(conflictId: string) {
     setRejectingId(conflictId)
+    setErrorMsg(null)
     try {
       await rejectConflict(conflictId)
       await qc.invalidateQueries({ queryKey: ['conflicts', projectId] })
@@ -99,11 +104,20 @@ export default function IntelligenceCenter() {
       await qc.invalidateQueries({ queryKey: ['decisions', projectId] })
       await qc.invalidateQueries({ queryKey: ['dashboard'] })
       setSelectedConflict(null)
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Failed to reject conflict')
     } finally { setRejectingId(null) }
   }
 
   return (
     <div className="p-6 animate-in">
+      {/* Error banner */}
+      {errorMsg && (
+        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-center justify-between">
+          <span>{errorMsg}</span>
+          <button onClick={() => setErrorMsg(null)} className="ml-4 text-red-400 hover:text-red-600">✕</button>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>

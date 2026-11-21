@@ -201,6 +201,16 @@ async def apply_conflict_resolution(
 
     # Write resolved new_state to ProjectState so Copilot sees the latest truth
     if conflict.new_state and conflict.category:
+        # new_state is JSONB (dict) — extract a string value to store in Text state_value
+        new_state_dict = conflict.new_state if isinstance(conflict.new_state, dict) else {}
+        # Use the first value in new_state dict, or serialize to a readable string
+        import json as _json
+        if new_state_dict:
+            first_val = next(iter(new_state_dict.values()), None)
+            state_str = str(first_val) if first_val else _json.dumps(new_state_dict)
+        else:
+            state_str = _json.dumps(conflict.new_state)
+
         result2 = await db.execute(
             select(ProjectState).where(
                 ProjectState.project_id == conflict.project_id,
@@ -209,12 +219,12 @@ async def apply_conflict_resolution(
         )
         existing = result2.scalar_one_or_none()
         if existing:
-            existing.state_value = conflict.new_state
+            existing.state_value = state_str
         else:
             db.add(ProjectState(
                 project_id=conflict.project_id,
                 state_key=conflict.category,
-                state_value=conflict.new_state,
+                state_value=state_str,
             ))
 
     db.add(ActivityLog(
