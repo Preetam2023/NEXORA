@@ -6,10 +6,10 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.models.models import Project, ProjectMember, User
+from app.models.models import Project, ProjectMember, ProjectState, User
 from app.schemas.schemas import (
     CreateProjectRequest, UpdateProjectRequest, ProjectResponse, MemberResponse,
-    CreateMemberRequest, ListResponse,
+    CreateMemberRequest, ListResponse, ProjectStateResponse,
 )
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
@@ -90,6 +90,17 @@ async def update_project(project_id: str, body: UpdateProjectRequest, db: AsyncS
     if resp.technology_stack is None:
         resp.technology_stack = []
     return resp
+
+
+# ── Project State ─────────────────────────────────────────────────────────────
+
+@router.get("/{project_id}/state", response_model=ListResponse)
+async def get_project_state(project_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(ProjectState).where(ProjectState.project_id == project_id)
+    )
+    rows = result.scalars().all()
+    return {"data": [ProjectStateResponse.model_validate(r) for r in rows], "total": len(rows)}
 
 
 # ── Members ───────────────────────────────────────────────────────────────────

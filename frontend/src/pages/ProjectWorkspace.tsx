@@ -139,6 +139,61 @@ function buildAISummary(project: Project, meetings: Meeting[], tasks: ReturnType
   return parts.join(' ')
 }
 
+function buildCurrentStateNarrative(
+  project: Project,
+  meetings: Meeting[],
+  tasks: ReturnType<typeof Array.prototype.filter>,
+  conflicts: ReturnType<typeof Array.prototype.filter>,
+  state: Array<{ state_key: string; state_value: string }>,
+): string {
+  const analyzed = meetings.filter((m: Meeting) => m.status === 'analyzed')
+  const done = tasks.filter((t: { status: string }) => t.status === 'completed').length
+  const inProgress = tasks.filter((t: { status: string }) => t.status === 'in_progress').length
+  const blocked = tasks.filter((t: { status: string }) => t.status === 'blocked').length
+  const openConflicts = conflicts.filter((c: { status: string }) => c.status === 'open')
+  const resolvedConflicts = conflicts.filter((c: { status: string }) => c.status === 'resolved')
+
+  // Pull key state values
+  const dbTech = state.find(s => s.state_key === 'database_technology')?.state_value
+  const dbOwner = state.find(s => s.state_key === 'database_implementation_owner')?.state_value
+  const apiOwner = state.find(s => s.state_key === 'api_integration_owner')?.state_value
+  const apiDeadline = state.find(s => s.state_key === 'api_deadline')?.state_value
+
+  const lines: string[] = []
+
+  // Line 1: overall health + progress
+  const healthLabel = project.health === 'healthy' ? 'on track' : project.health === 'at_risk' ? 'at risk' : 'critical'
+  lines.push(`Project is ${healthLabel} at ${project.completion_percentage}% completion with ${analyzed.length} meetings analyzed. ${done} task${done !== 1 ? 's' : ''} completed, ${inProgress} in progress${blocked > 0 ? `, ${blocked} blocked` : ''}.`)
+
+  // Line 2: tech stack & ownership from project state
+  if (dbTech || dbOwner || apiOwner) {
+    const techLine: string[] = []
+    if (dbTech) techLine.push(`Database: ${dbTech}${dbOwner ? ` (${dbOwner})` : ''}`)
+    if (apiOwner) techLine.push(`API: ${apiOwner}${apiDeadline ? ` — deadline ${apiDeadline}` : ''}`)
+    lines.push(techLine.join('. ') + '.')
+  }
+
+  // Line 3: latest meeting insight
+  const latestAnalyzed = analyzed.sort((a: Meeting, b: Meeting) =>
+    new Date(b.meeting_date ?? b.created_at).getTime() - new Date(a.meeting_date ?? a.created_at).getTime()
+  )[0]
+  if (latestAnalyzed?.summary) {
+    // Take first sentence of the most recent meeting summary
+    const firstSentence = latestAnalyzed.summary.split('.')[0]
+    lines.push(`Latest meeting (${latestAnalyzed.title}): ${firstSentence}.`)
+  }
+
+  // Line 4: conflicts status
+  if (openConflicts.length > 0) {
+    const titles = openConflicts.slice(0, 2).map((c: { title: string }) => c.title)
+    lines.push(`⚠ ${openConflicts.length} open conflict${openConflicts.length > 1 ? 's' : ''} need resolution: ${titles.join('; ')}.`)
+  } else if (resolvedConflicts.length > 0) {
+    lines.push(`All ${resolvedConflicts.length} detected conflict${resolvedConflicts.length > 1 ? 's' : ''} resolved — decisions are aligned.`)
+  }
+
+  return lines.join('\n\n')
+}
+
 function OverviewTab({ project, projectId }: { project: Project; projectId: string }) {
   const { data: tasksData } = useQuery({ queryKey: ['tasks', projectId], queryFn: () => getTasks(projectId) })
   const { data: meetingsData } = useQuery({ queryKey: ['meetings', projectId], queryFn: () => getMeetings(projectId) })
@@ -161,6 +216,10 @@ function OverviewTab({ project, projectId }: { project: Project; projectId: stri
 
   const aiSummary = meetings.length > 0 || state.length > 0
     ? buildAISummary(project, meetings, tasks, conflicts, state)
+    : null
+
+  const currentStateNarrative = meetings.length > 0 || state.length > 0
+    ? buildCurrentStateNarrative(project, meetings, tasks, conflicts, state)
     : null
 
   const overdueTasks = tasks.filter(t => t.due_date && new Date(t.due_date) < new Date() && t.status !== 'completed' && t.status !== 'cancelled')
@@ -279,22 +338,25 @@ function OverviewTab({ project, projectId }: { project: Project; projectId: stri
           </div>
         </div>
 
-        {/* Current State — glossy */}
+        {/* Current State — rich narrative */}
         <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm relative overflow-hidden">
           <div className="absolute bottom-0 left-0 w-24 h-24 rounded-full opacity-5" style={{ background: '#10B981', transform: 'translate(-40%, 40%)' }} />
-          <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center gap-2 mb-3">
             <TrendingUp size={14} className="text-slate-500" />
             <h3 className="font-bold text-slate-800 text-sm">Current State</h3>
           </div>
-          {state.length === 0 ? (
-            <p className="text-xs text-slate-400">No state recorded yet</p>
+          {!currentStateNarrative ? (
+            <p className="text-xs text-slate-400">No data yet — analyze a meeting to populate project state.</p>
           ) : (
-            <div className="space-y-3">
-              {state.filter(kv => !kv.state_key.startsWith('previous_')).map(kv => (
-                <div key={kv.id} className="border-b border-slate-50 pb-2 last:border-0 last:pb-0">
-                  <p className="text-xs text-slate-400 capitalize font-medium">{kv.state_key.replace(/_/g, ' ')}</p>
-                  <p className="text-sm font-bold text-slate-800 mt-0.5">{kv.state_value}</p>
-                </div>
+            <div className="space-y-2.5 relative">
+              {currentStateNarrative.split('\n\n').map((para, i) => (
+                <p key={i} className={`text-xs leading-relaxed ${
+                  para.startsWith('⚠')
+                    ? 'text-amber-700 font-semibold bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-2'
+                    : i === 0
+                    ? 'text-slate-700 font-semibold'
+                    : 'text-slate-600'
+                }`}>{para}</p>
               ))}
             </div>
           )}

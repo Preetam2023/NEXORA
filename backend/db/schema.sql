@@ -70,6 +70,8 @@ CREATE TABLE IF NOT EXISTS meetings (
     main_topics     JSONB DEFAULT '[]',
     participants    JSONB DEFAULT '[]',
     status          TEXT NOT NULL DEFAULT 'pending',  -- pending | analyzing | analyzed | failed
+    processing_status TEXT DEFAULT 'pending',
+    analysis_result JSONB DEFAULT '{}',
     analysis_error  TEXT,
     workflow_id     TEXT,  -- LangGraph run ID
     metadata        JSONB DEFAULT '{}',

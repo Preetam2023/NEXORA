@@ -112,10 +112,14 @@ class MeetingResponse(BaseModel):
     title: str
     meeting_type: str
     meeting_date: datetime | None = None
+    duration_mins: int | None = None
     status: str
     summary: str | None = None
+    transcript: str | None = None
     participants: list[str] = []
+    main_topics: list[str] = []
     created_at: datetime
+    updated_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 

@@ -4,6 +4,13 @@
 -- Owner: Saikat (SEED task)
 
 -- ─────────────────────────────────────────────
+-- Schema migration: add missing columns if not present
+-- (safe to re-run — uses IF NOT EXISTS)
+-- ─────────────────────────────────────────────
+ALTER TABLE meetings ADD COLUMN IF NOT EXISTS processing_status VARCHAR(50) DEFAULT 'pending';
+ALTER TABLE meetings ADD COLUMN IF NOT EXISTS analysis_result JSONB DEFAULT '{}';
+
+-- ─────────────────────────────────────────────
 -- Users / Team Members
 -- ─────────────────────────────────────────────
 INSERT INTO users (id, email, name, role) VALUES
@@ -118,7 +125,7 @@ INSERT INTO tasks (id, project_id, meeting_id, title, assigned_to_name, assigned
     'bbbbbbbb-0000-0000-0000-000000000002',
     'high',
     'in_progress',
-    '2024-11-22',
+    '2026-11-28',
     '[{"speaker": "Rahul Sharma", "quote": "Arjun, you''re the database implementation lead, deadline Friday"}]'
 ),
 (
@@ -130,7 +137,7 @@ INSERT INTO tasks (id, project_id, meeting_id, title, assigned_to_name, assigned
     'bbbbbbbb-0000-0000-0000-000000000004',
     'high',
     'in_progress',
-    '2024-11-22',
+    '2026-11-28',
     '[{"speaker": "Rahul Sharma", "quote": "Priya, you''re handling the API integration layer, also deadline Friday"}]'
 ),
 (
@@ -142,7 +149,7 @@ INSERT INTO tasks (id, project_id, meeting_id, title, assigned_to_name, assigned
     'bbbbbbbb-0000-0000-0000-000000000005',
     'medium',
     'todo',
-    '2024-11-23',
+    '2026-11-29',
     '[{"speaker": "Neha Joshi", "quote": "Sure, I''ll have the test suite ready within a day of Priya''s endpoints being up"}]'
 )
 ON CONFLICT DO NOTHING;
@@ -352,7 +359,7 @@ INSERT INTO project_state (project_id, state_key, state_value, state_category, s
 (
     'aaaaaaaa-0000-0000-0000-000000000001',
     'api_deadline',
-    '2024-11-25',
+    '2026-11-28',
     'timeline',
     'cccccccc-0000-0000-0000-000000000003',
     'dddddddd-0000-0000-0000-000000000004'
@@ -480,7 +487,7 @@ INSERT INTO tasks (id, project_id, meeting_id, title, assigned_to_name, priority
     'Arjun Verma',
     'high',
     'completed',
-    '2024-11-21'
+    '2026-11-22'
 ),
 (
     'eeeeeeee-0000-0000-0000-000000000006',
@@ -490,7 +497,7 @@ INSERT INTO tasks (id, project_id, meeting_id, title, assigned_to_name, priority
     'Priya Nair',
     'high',
     'in_progress',
-    '2024-11-25'
+    '2026-11-27'
 ),
 (
     'eeeeeeee-0000-0000-0000-000000000007',
@@ -500,7 +507,7 @@ INSERT INTO tasks (id, project_id, meeting_id, title, assigned_to_name, priority
     'Rahul Sharma',
     'critical',
     'todo',
-    '2024-11-27'
+    '2026-12-03'
 ),
 (
     'eeeeeeee-0000-0000-0000-000000000008',
@@ -510,7 +517,7 @@ INSERT INTO tasks (id, project_id, meeting_id, title, assigned_to_name, priority
     'Neha Joshi',
     'high',
     'in_progress',
-    '2024-11-28'
+    '2026-12-04'
 )
 ON CONFLICT DO NOTHING;
 
@@ -519,3 +526,17 @@ INSERT INTO activity_logs (project_id, meeting_id, actor_name, action, entity_ty
     ('aaaaaaaa-0000-0000-0000-000000000001', 'cccccccc-0000-0000-0000-000000000004', 'Rahul Sharma', 'meeting_analyzed', 'meeting', 'Thursday check-in analyzed — API progress 60%, QA risk flagged'),
     ('aaaaaaaa-0000-0000-0000-000000000001', 'cccccccc-0000-0000-0000-000000000005', 'Rahul Sharma', 'meeting_analyzed', 'meeting', 'Week 2 kickoff analyzed — API complete, testing phase begins')
 ON CONFLICT DO NOTHING;
+
+-- ─────────────────────────────────────────────
+-- UPDATE: Fix task due dates to future dates (re-run safe)
+-- ─────────────────────────────────────────────
+UPDATE tasks SET due_date = '2026-11-28' WHERE id = 'eeeeeeee-0000-0000-0000-000000000001';
+UPDATE tasks SET due_date = '2026-11-28' WHERE id = 'eeeeeeee-0000-0000-0000-000000000002';
+UPDATE tasks SET due_date = '2026-11-29' WHERE id = 'eeeeeeee-0000-0000-0000-000000000003';
+UPDATE tasks SET due_date = '2026-11-22' WHERE id = 'eeeeeeee-0000-0000-0000-000000000005';
+UPDATE tasks SET due_date = '2026-11-27' WHERE id = 'eeeeeeee-0000-0000-0000-000000000006';
+UPDATE tasks SET due_date = '2026-12-03' WHERE id = 'eeeeeeee-0000-0000-0000-000000000007';
+UPDATE tasks SET due_date = '2026-12-04' WHERE id = 'eeeeeeee-0000-0000-0000-000000000008';
+
+-- UPDATE: Fix api_deadline in project state to future date
+UPDATE project_state SET state_value = '2026-11-28' WHERE project_id = 'aaaaaaaa-0000-0000-0000-000000000001' AND state_key = 'api_deadline';

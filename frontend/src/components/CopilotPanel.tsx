@@ -32,6 +32,7 @@ export default function CopilotPanel({ projectId, onClose }: Props) {
   const [streaming, setStreaming] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const cleanupRef = useRef<(() => void) | null>(null)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   // Derive projectId from URL if not passed
@@ -56,6 +57,17 @@ export default function CopilotPanel({ projectId, onClose }: Props) {
     setInput('')
     setStreaming(true)
 
+    // Timeout: if no done/error event after 30s, show error
+    timeoutRef.current = setTimeout(() => {
+      setMessages(prev => prev.map(m =>
+        m.id === assistantId && m.streaming
+          ? { ...m, content: m.content || 'Response timed out. The AI service may be unavailable.', streaming: false }
+          : m
+      ))
+      setStreaming(false)
+      cleanupRef.current?.()
+    }, 30000)
+
     const cleanup = streamCopilotChat(
       { project_id: effectiveProjectId, message: text },
       (e: SSEEvent) => {
@@ -65,6 +77,7 @@ export default function CopilotPanel({ projectId, onClose }: Props) {
           ))
         }
         if (e.type === 'done') {
+          if (timeoutRef.current) clearTimeout(timeoutRef.current)
           const payload = e.payload as { sources?: Message['sources'] }
           setMessages(prev => prev.map(m =>
             m.id === assistantId ? { ...m, sources: payload.sources ?? [], streaming: false } : m
@@ -72,8 +85,13 @@ export default function CopilotPanel({ projectId, onClose }: Props) {
           setStreaming(false)
         }
         if (e.type === 'error') {
+          if (timeoutRef.current) clearTimeout(timeoutRef.current)
+          const payload = e.payload as { message?: string }
+          const errMsg = payload.message?.includes('LLM Provider NOT provided')
+            ? 'AI service is not configured on this server. Check Railway env vars (AICORE_*).'
+            : payload.message ?? 'An error occurred. Please try again.'
           setMessages(prev => prev.map(m =>
-            m.id === assistantId ? { ...m, content: 'Sorry, an error occurred.', streaming: false } : m
+            m.id === assistantId ? { ...m, content: errMsg, streaming: false } : m
           ))
           setStreaming(false)
         }

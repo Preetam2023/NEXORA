@@ -35,6 +35,7 @@ async def create_meeting(
         meeting_date=body.meeting_date,
         participants=body.participants,
         transcript=body.transcript,
+        status="pending",
         processing_status="pending",
     )
     db.add(meeting)

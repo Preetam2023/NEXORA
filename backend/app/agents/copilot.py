@@ -168,20 +168,38 @@ async def answer(
     # Yield conversation_id first so client can track the session
     yield f"data: {json.dumps({'type': 'meta', 'payload': {'conversation_id': conv_id}})}\n\n"
 
-    for chunk in ai.complete_stream(system=_SYSTEM_PROMPT, user=prompt):
-        full_response.append(chunk)
-        yield f"data: {json.dumps({'type': 'token', 'payload': {'text': chunk}})}\n\n"
+    try:
+        import asyncio
+        loop = asyncio.get_event_loop()
+
+        # Run the synchronous streaming generator in a thread to avoid blocking the event loop
+        def collect_chunks():
+            return list(ai.complete_stream(system=_SYSTEM_PROMPT, user=prompt))
+
+        chunks = await loop.run_in_executor(None, collect_chunks)
+
+        for chunk in chunks:
+            full_response.append(chunk)
+            yield f"data: {json.dumps({'type': 'token', 'payload': {'text': chunk}})}\n\n"
+
+    except Exception as exc:
+        logger.error("Copilot LLM error: %s", exc)
+        yield f"data: {json.dumps({'type': 'error', 'payload': {'message': str(exc)}})}\n\n"
+        return
 
     full_text = "".join(full_response)
 
     # 5. Save assistant response
-    db.add(CopilotMessage(
-        conversation_id=conv_id,
-        role="assistant",
-        content=full_text,
-        sources=sources,
-    ))
-    await db.commit()
+    try:
+        db.add(CopilotMessage(
+            conversation_id=conv_id,
+            role="assistant",
+            content=full_text,
+            sources=sources,
+        ))
+        await db.commit()
+    except Exception as exc:
+        logger.warning("Failed to save copilot message: %s", exc)
 
     yield f"data: {json.dumps({'type': 'done', 'payload': {'sources': sources}})}\n\n"
 
