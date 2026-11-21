@@ -28,20 +28,19 @@ async def run_impact_analysis(state: WorkflowState, db: AsyncSession) -> dict:
 
     # Load active tasks once
     result = await db.execute(
-        select(Task, User.name.label("assignee_name"))
-        .outerjoin(User, Task.assigned_to == User.id)
+        select(Task)
         .where(Task.project_id == pid, Task.status.notin_(["completed", "cancelled"]))
     )
     active_tasks = [
         {
-            "id": str(r.Task.id),
-            "title": r.Task.title,
-            "assigned_to_name": r.assignee_name,
-            "status": r.Task.status,
-            "due_date": r.Task.due_date.isoformat() if r.Task.due_date else None,
-            "priority": r.Task.priority,
+            "id": str(r.id),
+            "title": r.title,
+            "assigned_to_name": r.assigned_to_name,
+            "status": r.status,
+            "due_date": r.due_date.isoformat() if r.due_date else None,
+            "priority": r.priority,
         }
-        for r in result.all()
+        for r in result.scalars().all()
     ]
 
     # Load all project members

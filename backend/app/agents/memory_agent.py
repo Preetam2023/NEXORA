@@ -38,27 +38,25 @@ async def retrieve_historical_context(state: WorkflowState, db: AsyncSession) ->
         for d in result.scalars().all()
     ]
 
-    # 2. Active tasks with assigned member names (JOIN users)
+    # 2. Active tasks with assigned member names
     result = await db.execute(
-        select(Task, User.name.label("assignee_name"))
-        .outerjoin(User, Task.assigned_to == User.id)
+        select(Task)
         .where(
             Task.project_id == pid,
             Task.status.notin_(["completed", "cancelled"]),
         )
         .order_by(Task.created_at)
     )
-    rows = result.all()
     current_assignments = [
         {
-            "id": str(r.Task.id),
-            "title": r.Task.title,
-            "assigned_to_name": r.assignee_name,
-            "priority": r.Task.priority,
-            "status": r.Task.status,
-            "due_date": r.Task.due_date.isoformat() if r.Task.due_date else None,
+            "id": str(r.id),
+            "title": r.title,
+            "assigned_to_name": r.assigned_to_name,
+            "priority": r.priority,
+            "status": r.status,
+            "due_date": r.due_date.isoformat() if r.due_date else None,
         }
-        for r in rows
+        for r in result.scalars().all()
     ]
 
     # 3. project_state key-value store — the living project truth

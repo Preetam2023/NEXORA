@@ -166,7 +166,7 @@ async def _analysis_sse_generator(meeting_id: str):
                 )
                 task_result = await db.execute(
                     select(Task).where(
-                        Task.source_meeting_id == meeting_id,
+                        Task.meeting_id == meeting_id,
                         Task.project_id == meeting.project_id,
                     )
                 )
@@ -198,7 +198,7 @@ async def _analysis_sse_generator(meeting_id: str):
                             "id": str(t.id), "title": t.title, "description": t.description,
                             "priority": t.priority, "status": t.status,
                             "due_date": t.due_date.isoformat() if t.due_date else None,
-                            "source_evidence": t.source_evidence or [],
+                            "source_evidence": t.evidence or [],
                         }
                         for t in tasks
                     ],
@@ -208,7 +208,7 @@ async def _analysis_sse_generator(meeting_id: str):
                             "severity": c.severity, "confidence": c.confidence,
                             "ai_explanation": c.ai_explanation, "status": c.status,
                             "recommendation": c.recommendation,
-                            "impact_analysis": c.impact_analysis,
+                            "impact_analysis": (c.extra_data or {}).get("impact_analysis"),
                         }
                         for c in conflicts
                     ],

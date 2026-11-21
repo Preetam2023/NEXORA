@@ -188,12 +188,12 @@ async def _persist_proposed(state: WorkflowState, db: AsyncSession) -> None:
             project_id=state.project_id,
             title=t.title,
             description=t.description,
-            assigned_to=assignee_id,
+            assigned_to_name=t.assigned_to_name,
             priority=t.priority,
             status="proposed",
             due_date=due,
-            source_meeting_id=state.meeting_id,
-            source_evidence=[ev.model_dump() for ev in t.evidence],
+            meeting_id=state.meeting_id,
+            evidence=[ev.model_dump() for ev in t.evidence],
         ))
 
     # Conflicts

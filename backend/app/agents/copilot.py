@@ -16,7 +16,6 @@ from app.models.models import (
     Decision,
     ProjectState,
     Task,
-    User,
 )
 
 logger = logging.getLogger(__name__)
@@ -97,16 +96,14 @@ async def answer(
 
     # Active tasks with assignees
     result = await db.execute(
-        select(Task, User.name.label("assignee_name"))
-        .outerjoin(User, Task.assigned_to == User.id)
+        select(Task)
         .where(Task.project_id == project_id, Task.status.notin_(["completed", "cancelled"]))
         .order_by(Task.created_at.desc())
         .limit(20)
     )
-    tasks_rows = result.all()
     tasks_text = "\n".join(
-        f"- {r.Task.title} → {r.assignee_name or 'unassigned'} [{r.Task.status}]"
-        for r in tasks_rows
+        f"- {r.title} → {r.assigned_to_name or 'unassigned'} [{r.status}]"
+        for r in result.scalars().all()
     ) or "(none)"
 
     # 2. pgvector similarity search for relevant transcript passages

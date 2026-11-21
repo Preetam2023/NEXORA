@@ -61,8 +61,8 @@ async def apply_approved_changes(state: WorkflowState, db: AsyncSession) -> dict
         # Log activity
         db.add(ActivityLog(
             project_id=state.project_id,
-            event_type="decision_approved",
-            description=f"Decision approved: {d.title}",
+            action="decision_approved",
+            summary=f"Decision approved: {d.title}",
             extra_data={"decision_id": decision.id, "meeting_id": state.meeting_id},
         ))
 
@@ -93,21 +93,20 @@ async def apply_approved_changes(state: WorkflowState, db: AsyncSession) -> dict
             id=str(uuid.uuid4()),
             project_id=state.project_id,
             title=t.title,
-            description=t.description,
-            assigned_to=assignee_id,
+            assigned_to_name=t.assigned_to_name,
             priority=t.priority,
             status="todo",
             due_date=due_date,
-            source_meeting_id=state.meeting_id,
-            source_evidence=[ev.model_dump() for ev in t.evidence],
+            meeting_id=state.meeting_id,
+            evidence=[ev.model_dump() for ev in t.evidence],
         )
         db.add(task)
         written_tasks.append(task.id)
 
         db.add(ActivityLog(
             project_id=state.project_id,
-            event_type="task_created",
-            description=f"Task created: {t.title}",
+            action="task_created",
+            summary=f"Task created: {t.title}",
             extra_data={
                 "task_id": task.id,
                 "assigned_to_name": t.assigned_to_name,
@@ -172,8 +171,8 @@ async def apply_conflict_resolution(
 
     db.add(ActivityLog(
         project_id=conflict.project_id,
-        event_type="conflict_resolved",
-        description=f"Conflict resolved: {conflict.title}",
+        action="conflict_resolved",
+        summary=f"Conflict resolved: {conflict.title}",
         extra_data={
             "conflict_id": conflict_id,
             "resolution": resolution,

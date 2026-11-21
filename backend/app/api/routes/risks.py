@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.models.models import Conflict, Decision, Task, User
+from app.models.models import Conflict, Decision, Task
 from app.schemas.schemas import ListResponse, RiskResponse
 
 logger = logging.getLogger(__name__)
@@ -35,16 +35,14 @@ async def get_project_risks(project_id: str, db: AsyncSession = Depends(get_db))
 
     # ── Rule 1: Overdue tasks ─────────────────────────────────────────────────
     result = await db.execute(
-        select(Task, User.name.label("assignee_name"))
-        .outerjoin(User, Task.assigned_to == User.id)
+        select(Task)
         .where(
             Task.project_id == project_id,
             Task.status.notin_(["completed", "cancelled"]),
             Task.due_date.isnot(None),
         )
     )
-    for row in result.all():
-        task = row.Task
+    for task in result.scalars().all():
         if task.due_date and task.due_date < now.date():
             days_overdue = (now.date() - task.due_date).days
             severity = "critical" if days_overdue > 7 else "high" if days_overdue > 3 else "medium"
@@ -52,7 +50,7 @@ async def get_project_risks(project_id: str, db: AsyncSession = Depends(get_db))
                 "id": f"risk-overdue-{task.id}",
                 "project_id": project_id,
                 "title": f"Overdue task: {task.title}",
-                "description": f"Task assigned to {row.assignee_name or 'unassigned'} is {days_overdue} day(s) overdue.",
+                "description": f"Task assigned to {task.assigned_to_name or 'unassigned'} is {days_overdue} day(s) overdue.",
                 "severity": severity,
                 "source_type": "task",
                 "source_id": str(task.id),
@@ -88,7 +86,7 @@ async def get_project_risks(project_id: str, db: AsyncSession = Depends(get_db))
     result = await db.execute(
         select(Task).where(
             Task.project_id == project_id,
-            Task.assigned_to.is_(None),
+            Task.assigned_to_name.is_(None),
             Task.status.notin_(["completed", "cancelled", "proposed"]),
         )
     )

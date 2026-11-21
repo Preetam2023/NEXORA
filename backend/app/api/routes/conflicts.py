@@ -75,8 +75,8 @@ async def reject_conflict(
     conflict.status = "rejected"
     db.add(ActivityLog(
         project_id=conflict.project_id,
-        event_type="conflict_rejected",
-        description=f"Conflict rejected: {conflict.title}",
+        action="conflict_rejected",
+        summary=f"Conflict rejected: {conflict.title}",
         extra_data={"conflict_id": conflict_id},
     ))
     await db.commit()
