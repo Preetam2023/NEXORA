@@ -25,12 +25,19 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     logger.info("Starting NEXORA backend (env=%s)", settings.app_env)
 
-    # Create all tables
+    # Create all tables — if DATABASE_URL is wrong this gives a clear message
     from app.core.database import engine, Base
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    logger.info("Database tables ready")
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("Database tables ready")
+    except Exception as exc:
+        logger.error(
+            "STARTUP FAILED — cannot connect to database. "
+            "Check DATABASE_URL env var in Railway Variables tab. Error: %s",
+            exc,
+        )
+        raise
     yield
     logger.info("Shutting down NEXORA backend")
     await engine.dispose()

@@ -202,6 +202,7 @@ async def _persist_proposed(state: WorkflowState, db: AsyncSession) -> None:
         db.add(Conflict(
             id=str(_uuid.uuid4()),
             project_id=state.project_id,
+            meeting_id=state.meeting_id,
             category=c.category,
             title=c.title,
             previous_state=c.previous_state,
@@ -212,7 +213,7 @@ async def _persist_proposed(state: WorkflowState, db: AsyncSession) -> None:
             ai_explanation=c.ai_explanation,
             recommendation=c.recommendation.model_dump() if c.recommendation else None,
             status="open",
-            impact_analysis=impact,
+            extra_data={"impact_analysis": impact} if impact else {},
         ))
 
     await db.flush()
