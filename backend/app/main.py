@@ -57,7 +57,7 @@ def create_app() -> FastAPI:
 
     # Register routers
     from app.api.routes import (
-        projects, meetings, decisions, conflicts, tasks, copilot, dashboard
+        projects, meetings, decisions, conflicts, tasks, copilot, dashboard, risks
     )
     app.include_router(projects.router)
     app.include_router(meetings.router)
@@ -66,6 +66,7 @@ def create_app() -> FastAPI:
     app.include_router(tasks.router)
     app.include_router(copilot.router)
     app.include_router(dashboard.router)
+    app.include_router(risks.router)
 
     @app.get("/health", tags=["health"])
     async def health():

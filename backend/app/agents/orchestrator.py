@@ -105,7 +105,11 @@ async def run_workflow(meeting_id: str, db: AsyncSession) -> WorkflowState:
     impact_result = await run_impact_analysis(state, db)
     state = state.model_copy(update=impact_result)
 
-    # ── 5. Persist proposed data to DB (status="proposed") ───────────────────
+    # ── 5. Embed transcript chunks for pgvector search (BE-4) ─────────────────
+    from app.agents.embeddings import embed_meeting_transcript
+    await embed_meeting_transcript(meeting_id, db)
+
+    # ── 6. Persist proposed data to DB (status="proposed") ───────────────────
     await _persist_proposed(state, db)
 
     # Update meeting processing status

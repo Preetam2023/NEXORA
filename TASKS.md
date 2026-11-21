@@ -28,9 +28,9 @@
 | BE-1 | Meeting API routes: `POST /api/meetings/{id}/analyze`, `GET /api/meetings/{id}/analysis` (SSE stream) | ✅ Done | `feature/ai-agents` |
 | BE-2 | Conflict resolution API: `POST /api/conflicts/{id}/resolve`, `POST /api/conflicts/{id}/reject` | ✅ Done | `feature/ai-agents` |
 | BE-3 | Copilot chat API: `POST /api/copilot/chat` (SSE streaming response) | ✅ Done | `feature/ai-agents` |
-| BE-4 | Supabase pgvector setup + transcript chunk embedding pipeline | ⬜ Todo | `feature/be-embeddings` |
-| BE-5 | Risk Radar route: `GET /api/projects/{id}/risks` — deterministic rules-based detection | ⬜ Todo | `feature/be-risks` |
-| DEPLOY-BE | Railway backend deployment: Procfile, railway.toml, env vars, smoke test on live URL | ⬜ Todo | `feature/be-deploy` |
+| BE-4 | Supabase pgvector setup + transcript chunk embedding pipeline | ✅ Done | `main` |
+| BE-5 | Risk Radar route: `GET /api/projects/{id}/risks` — deterministic rules-based detection | ✅ Done | `main` |
+| DEPLOY-BE | Railway backend deployment: Procfile, railway.toml, env vars, smoke test on live URL | ✅ Done | `main` |
 
 ---
 
